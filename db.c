@@ -7,7 +7,55 @@
 static void db_print_err(sqlite3 *db, char *sql) {
     fprintf(stderr, "SQL: %s\nError: %s\n", sql, sqlite3_errmsg(db));
 }
+static void db_handle_err(sqlite3 *db, sqlite3_stmt *stmt, char *sql) {
+    db_print_err(db, sql);
+    sqlite3_finalize(stmt);
+}
+static int prepare_sql(sqlite3 *db, char *sql, sqlite3_stmt **stmt) {
+    return sqlite3_prepare_v2(db, sql, -1, stmt, 0);
+}
+static int db_is_database_file(sqlite3 *db) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
 
+    s = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='(any)'";
+    z = prepare_sql(db, s, &stmt);
+    if (z == SQLITE_NOTADB)
+        return 0;
+    sqlite3_finalize(stmt);
+    return 1;
+}
+static int db_is_tables_exist(sqlite3 *db) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+
+    s = "SELECT * FROM sqlite_master WHERE type='table' AND name='cat'";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 0;
+    }
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+    sqlite3_finalize(stmt);
+
+    s = "SELECT * FROM sqlite_master WHERE type='table' AND name='exp'";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 0;
+    }
+    if (sqlite3_step(stmt) != SQLITE_ROW) {
+        sqlite3_finalize(stmt);
+        return 0;
+    }
+    sqlite3_finalize(stmt);
+    return 1;
+}
 static int db_init_tables(sqlite3 *db) {
     char *s;
     char *err;
@@ -40,6 +88,50 @@ int create_dbfile(char *dbfile) {
     return 0;
 }
 
+int open_dbfile(char *dbfile, sqlite3 **pdb) {
+    sqlite3 *db;
+    char *s;
+    char *err;
+    int z;
+
+    z = sqlite3_open(dbfile, pdb);
+    db = *pdb;
+    if (z != 0) {
+        fprintf(stderr, "Error opening dbfile '%s': %s\n", dbfile, sqlite3_errmsg(db));
+        return 1;
+    }
+    if (!db_is_database_file(db)) {
+        fprintf(stderr, "'%s' not a database file\n", dbfile);
+        sqlite3_close_v2(db);
+        return 1;
+    }
+    if (!db_is_tables_exist(db)) {
+        fprintf(stderr, "dbfile '%s' not initialized\n", dbfile);
+        sqlite3_close_v2(db);
+        return 1;
+    }
+    return 0;
+}
+
+cat_t *cat_new() {
+    cat_t *cat = malloc(sizeof(cat_t));
+    cat->catid = 0;
+    cat->name = str_new(15);
+    return cat;
+}
+void cat_free(cat_t *cat) {
+    str_free(cat->name);
+    free(cat);
+}
+void cat_dup(cat_t *dest, cat_t *src) {
+    str_assign(dest->name, src->name->s);
+}
+int cat_is_valid(cat_t *cat) {
+    if (cat->catid == 0 || cat->name->len == 0)
+        return 0;
+    return 1;
+}
+
 exp_t *exp_new() {
     exp_t *xp = malloc(sizeof(exp_t));
     xp->expid = 0;
@@ -69,16 +161,99 @@ int exp_is_valid(exp_t *xp) {
     return 1;
 }
 
+int db_select_cat(sqlite3 *db, array_t *cats) {
+    cat_t *cat;
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
 
+    s = "SELECT cat_id, name FROM cat WHERE 1=1";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+
+    array_clear(cats);
+    while ((z = sqlite3_step(stmt)) == SQLITE_ROW) {
+        cat = cat_new();
+        cat->catid = sqlite3_column_int64(stmt, 0);
+        str_assign(cat->name, (char*)sqlite3_column_text(stmt, 1));
+        array_add(cats, cat);
+    }
+    if (z != SQLITE_DONE) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_finalize(stmt);
+    return 0;
+}
 int db_add_cat(sqlite3 *db, cat_t *cat) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+
+    s = "INSERT INTO cat (name) VALUES (?);";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    z = sqlite3_bind_text(stmt, 1, cat->name->s, -1, NULL);
+    assert(z == 0);
+
+    z = sqlite3_step(stmt);
+    if (z != SQLITE_DONE) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_finalize(stmt);
     return 0;
 }
-
 int db_edit_cat(sqlite3 *db, cat_t *cat) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+
+    s = "UPDATE cat SET name = ? WHERE cat_id = ?";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    z = sqlite3_bind_text(stmt, 1, cat->name->s, -1, NULL);
+    assert(z == 0);
+    z = sqlite3_bind_int(stmt, 2, cat->catid);
+    assert(z == 0);
+
+    z = sqlite3_step(stmt);
+    if (z != SQLITE_DONE) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_finalize(stmt);
     return 0;
 }
-
 int db_del_cat(sqlite3 *db, uint catid) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+
+    s = "DELETE FROM cat WHERE cat_id = ?";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    z = sqlite3_bind_int(stmt, 1, catid);
+    assert(z == 0);
+
+    z = sqlite3_step(stmt);
+    if (z != SQLITE_DONE) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_finalize(stmt);
     return 0;
 }
 
@@ -87,13 +262,11 @@ int db_select_exp(sqlite3 *db, array_t *xps) {
     sqlite3_stmt *stmt;
     char *s;
     int z;
-    char isodate[ISO_DATE_LEN+1];
 
     s = "SELECT exp_id, date, desc, amt, cat_id FROM exp WHERE 1=1";
-    z = sqlite3_prepare_v2(db, s, -1, &stmt, 0);
+    z = prepare_sql(db, s, &stmt);
     if (z != 0) {
-        sqlite3_finalize(stmt);
-        db_print_err(db, s);
+        db_handle_err(db, stmt, s);
         return 1;
     }
 
@@ -109,15 +282,12 @@ int db_select_exp(sqlite3 *db, array_t *xps) {
         array_add(xps, xp);
     }
     if (z != SQLITE_DONE) {
-        db_print_err(db, s);
-        sqlite3_finalize(stmt);
+        db_handle_err(db, stmt, s);
         return 1;
     }
-
     sqlite3_finalize(stmt);
     return 0;
 }
-
 int db_add_exp(sqlite3 *db, exp_t *xp) {
     sqlite3_stmt *stmt;
     char *s;
@@ -125,10 +295,9 @@ int db_add_exp(sqlite3 *db, exp_t *xp) {
     char isodate[ISO_DATE_LEN+1];
 
     s = "INSERT INTO exp (date, desc, amt, cat_id) VALUES (?, ?, ?, ?);";
-    z = sqlite3_prepare_v2(db, s, -1, &stmt, 0);
+    z = prepare_sql(db, s, &stmt);
     if (z != 0) {
-        sqlite3_finalize(stmt);
-        db_print_err(db, s);
+        db_handle_err(db, stmt, s);
         return 1;
     }
     date_to_iso(xp->date, isodate, sizeof(isodate));
@@ -143,22 +312,64 @@ int db_add_exp(sqlite3 *db, exp_t *xp) {
 
     z = sqlite3_step(stmt);
     if (z != SQLITE_DONE) {
-        db_print_err(db, s);
-        sqlite3_finalize(stmt);
+        db_handle_err(db, stmt, s);
         return 1;
     }
-
     sqlite3_finalize(stmt);
     return 0;
 }
-
 int db_edit_exp(sqlite3 *db, exp_t *xp) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+    char isodate[ISO_DATE_LEN+1];
+
+    s = "UPDATE exp SET date = ?, desc = ?, amt = ?, cat_id = ? WHERE exp_id = ?";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    date_to_iso(xp->date, isodate, sizeof(isodate));
+    z = sqlite3_bind_text(stmt, 1, isodate, -1, NULL);
+    assert(z == 0);
+    z = sqlite3_bind_text(stmt, 2, xp->desc->s, -1, NULL);
+    assert(z == 0);
+    z = sqlite3_bind_double(stmt, 3, xp->amt);
+    assert(z == 0);
+    z = sqlite3_bind_int(stmt, 4, xp->catid);
+    assert(z == 0);
+    z = sqlite3_bind_int(stmt, 5, xp->expid);
+    assert(z == 0);
+
+    z = sqlite3_step(stmt);
+    if (z != SQLITE_DONE) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_finalize(stmt);
     return 0;
 }
-
 int db_del_exp(sqlite3 *db, uint expid) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+
+    s = "DELETE FROM exp WHERE exp_id = ?";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    z = sqlite3_bind_int(stmt, 1, expid);
+    assert(z == 0);
+
+    z = sqlite3_step(stmt);
+    if (z != SQLITE_DONE) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_finalize(stmt);
     return 0;
 }
-
-
 

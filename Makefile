@@ -1,4 +1,4 @@
-PROGSRC=t.c db.c clib.c
+PROGSRC=t.c db.c clib.c mainwin.c
 LIBSRC=
 
 # pkg-config --cflags --libs gtk+-3.0
@@ -16,7 +16,7 @@ all: t
 dep:
 	apt install libgtk-3-dev
 
-#.SILENT:
+.SILENT:
 t: $(PROGSRC) sqlite3.o
 	gcc $(CFLAGS) -o $@ $^ $(LIBS)
 

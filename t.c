@@ -8,7 +8,20 @@
 
 #include "clib.h"
 #include "db.h"
+#include "mainwin.h"
 
+int main(int argc, char *argv[]) {
+    GtkWidget *w;
+    int z;
+
+    gtk_init(&argc, &argv);
+    w = mainwin_new();
+
+    gtk_main();
+    return 0;
+}
+
+#if 0
 int main(int argc, char *argv[]) {
     int z;
     sqlite3 *db;
@@ -37,9 +50,8 @@ int main(int argc, char *argv[]) {
         exit(0);
 
     printf("dbfile: %s\n", dbfile);
-    z = sqlite3_open(dbfile, &db);
+    z = open_dbfile(dbfile, &db);
     if (z != 0) {
-        fprintf(stderr, "Error opening dbfile '%s': %s\n", dbfile, sqlite3_errmsg(db));
         exit(1);
     }
 
@@ -70,4 +82,5 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
+#endif
 

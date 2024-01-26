@@ -247,7 +247,7 @@ void str_assign(str_t *str, char *s) {
 
 array_t *array_new(size_t cap) {
     if (cap == 0)
-        cap = SIZE_TINY;
+        cap = 8;
     array_t *a = malloc(sizeof(array_t));
     a->items = malloc(sizeof(a->items[0]) * cap);
     a->len = 0;
@@ -276,10 +276,9 @@ void array_resize(array_t *a, size_t newcap) {
     a->items = p;
     a->cap = newcap;
 }
-#define ARRAY_GROW 10
 void array_add(array_t *a, void *p) {
     if (a->len >= a->cap)
-        array_resize(a, a->cap + ARRAY_GROW);
+        array_resize(a, a->cap * 2);
     a->items[a->len] = p;
     a->len++;
 }
@@ -288,27 +287,6 @@ void array_del(array_t *a, uint idx) {
         a->items[i] = a->items[i+1];
     }
     a->len--;
-}
-intarray_t *intarray_new(size_t cap) {
-    intarray_t *a = malloc(sizeof(intarray_t));
-    a->items = malloc(sizeof(a->items[0]) * cap);
-    a->len = 0;
-    a->cap = cap;
-    return a;
-}
-void intarray_free(intarray_t *a) {
-    memset(a->items, 0, a->cap);
-    free(a->items);
-    free(a);
-}
-void intarray_assign(intarray_t *a, int *items, size_t len, size_t cap) {
-    a->items = items;
-    a->len = len;
-    a->cap = cap;
-}
-void intarray_clear(intarray_t *a) {
-    memset(a->items, 0, a->cap);
-    a->len = 0;
 }
 
 // sort_array() implementation functions

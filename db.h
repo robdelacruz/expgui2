@@ -17,12 +17,18 @@ typedef struct {
     uint64_t catid;
 } exp_t;
 
+cat_t *cat_new();
+void cat_free(cat_t *cat);
+void cat_dup(cat_t *destcat, cat_t *srccat);
+int cat_is_valid(cat_t *cat);
+
 exp_t *exp_new();
 void exp_free(exp_t *xp);
 void exp_dup(exp_t *destxp, exp_t *srcxp);
 int exp_is_valid(exp_t *xp);
 
 int create_dbfile(char *dbfile);
+int open_dbfile(char *dbfile, sqlite3 **db);
 
 int db_add_cat(sqlite3 *db, cat_t *cat);
 int db_edit_cat(sqlite3 *db, cat_t *cat);

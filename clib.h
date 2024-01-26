@@ -38,12 +38,6 @@ typedef struct {
     size_t cap;
 } array_t;
 
-typedef struct {
-    int *items;
-    size_t len;
-    size_t cap;
-} intarray_t;
-
 void quit(const char *s);
 void print_error(const char *s);
 void panic(char *s);
@@ -82,11 +76,6 @@ void array_clear(array_t *a);
 void array_resize(array_t *a, size_t newcap);
 void array_add(array_t *a, void *p);
 void array_del(array_t *a, uint idx);
-
-intarray_t *intarray_new(size_t cap);
-void intarray_free(intarray_t *a);
-void intarray_assign(intarray_t *a, int *items, size_t len, size_t cap);
-void intarray_clear(intarray_t *a);
 
 typedef int (*sort_compare_func_t)(void *a, void *b);
 void sort_array(void *array[], size_t array_len, sort_compare_func_t cmpfunc);
