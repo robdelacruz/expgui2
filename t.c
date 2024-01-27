@@ -11,24 +11,11 @@
 #include "mainwin.h"
 
 int main(int argc, char *argv[]) {
-    GtkWidget *w;
     int z;
-
-    gtk_init(&argc, &argv);
-    w = mainwin_new();
-
-    gtk_main();
-    return 0;
-}
-
-#if 0
-int main(int argc, char *argv[]) {
-    int z;
-    sqlite3 *db;
+    sqlite3 *db = NULL;
     char *dbfile = NULL;
-    exp_t *xp;
     array_t *xps;
-    char isodate[ISO_DATE_LEN+1];
+    GtkWidget *w;
 
     for (int i=1; i < argc; i++) {
         char *s = argv[i];
@@ -55,32 +42,11 @@ int main(int argc, char *argv[]) {
         exit(1);
     }
 
-    xp = exp_new();
-    xp->expid = 0;
-    xp->date = date_new_today();
-    xp->desc = str_new(0);
-    str_assign(xp->desc, "test");
-    xp->amt = 1.23;
-    xp->catid = 0;
-    db_add_exp(db, xp);
+    gtk_init(&argc, &argv);
+    w = mainwin_new();
 
-    xps = array_new(0);
-    db_select_exp(db, xps);
+    gtk_widget_show_all(w);
 
-    for (int i=0; i < xps->len; i++) {
-        xp = xps->items[i];
-        date_to_iso(xp->date, isodate, sizeof(isodate));
-        printf("%ld %s %s %f %ld\n",
-                xp->expid,
-                isodate,
-                xp->desc->s,
-                xp->amt,
-                xp->catid);
-    }
-
-    sqlite3_close_v2(db);
-
-    return 0;
+    gtk_main();
 }
-#endif
 

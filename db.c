@@ -137,13 +137,15 @@ exp_t *exp_new() {
     xp->expid = 0;
     xp->date = date_new_today();
     xp->desc = str_new(0);
-    xp->catid = 0;
     xp->amt = 0.0;
+    xp->catid = 0;
+    xp->catname = str_new(0);
     return xp;
 }
 void exp_free(exp_t *xp) {
     date_free(xp->date);
     str_free(xp->desc);
+    str_free(xp->catname);
     free(xp);
 }
 
@@ -151,6 +153,7 @@ void exp_dup(exp_t *dest, exp_t *src) {
     dest->expid = src->expid;
     date_dup(dest->date, src->date);
     str_assign(dest->desc, src->desc->s);
+    str_assign(dest->catname, src->catname->s);
     dest->amt = src->amt;
     dest->catid = src->catid;
 }
@@ -263,7 +266,10 @@ int db_select_exp(sqlite3 *db, array_t *xps) {
     char *s;
     int z;
 
-    s = "SELECT exp_id, date, desc, amt, cat_id FROM exp WHERE 1=1";
+    s = "SELECT exp_id, date, desc, amt, exp.cat_id, IFNULL(cat.name, '') "
+        "FROM exp "
+        "LEFT OUTER JOIN cat ON exp.cat_id = cat.cat_id "
+        "WHERE 1=1 ";
     z = prepare_sql(db, s, &stmt);
     if (z != 0) {
         db_handle_err(db, stmt, s);
@@ -278,6 +284,7 @@ int db_select_exp(sqlite3 *db, array_t *xps) {
         str_assign(xp->desc, (char*)sqlite3_column_text(stmt, 2));
         xp->amt = sqlite3_column_double(stmt, 3);
         xp->catid = sqlite3_column_int64(stmt, 4);
+        str_assign(xp->catname, (char*)sqlite3_column_text(stmt, 5));
 
         array_add(xps, xp);
     }

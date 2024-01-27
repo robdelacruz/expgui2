@@ -15,6 +15,7 @@ typedef struct {
     str_t *desc;
     double amt;
     uint64_t catid;
+    str_t *catname;
 } exp_t;
 
 cat_t *cat_new();
