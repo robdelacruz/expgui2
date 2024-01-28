@@ -28,8 +28,8 @@ void exp_free(exp_t *xp);
 void exp_dup(exp_t *destxp, exp_t *srcxp);
 int exp_is_valid(exp_t *xp);
 
-int create_dbfile(char *dbfile);
-int open_dbfile(char *dbfile, sqlite3 **db);
+int create_expense_file(char *dbfile, sqlite3 **pdb);
+int open_expense_file(char *dbfile, sqlite3 **pdb);
 
 int db_add_cat(sqlite3 *db, cat_t *cat);
 int db_edit_cat(sqlite3 *db, cat_t *cat);

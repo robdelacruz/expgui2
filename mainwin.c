@@ -10,7 +10,21 @@
 
 #include "mainwin.h"
 
-static GtkWidget *create_menubar();
+enum exp_field_t {
+    EXP_FIELD_EXPID,
+    EXP_FIELD_DATE,
+    EXP_FIELD_DESC,
+    EXP_FIELD_AMT,
+    EXP_FIELD_CATID,
+    EXP_FIELD_CATNAME,
+    EXP_FIELD_NCOLS
+};
+
+typedef struct {
+    sqlite3 *db;
+} ctx_t;
+
+static GtkWidget *create_menubar(ctx_t *ctx);
 static GtkWidget *create_treeview();
 static void refresh_treeview(GtkTreeView *tv, array_t *xps);
 static void set_treeview_row(GtkListStore *m, GtkTreeIter *it, exp_t *xp);
@@ -18,17 +32,23 @@ static void set_treeview_row(GtkListStore *m, GtkTreeIter *it, exp_t *xp);
 static void amt_datafunc(GtkTreeViewColumn *col, GtkCellRenderer *r, GtkTreeModel *m, GtkTreeIter *it, gpointer data);
 static void date_datafunc(GtkTreeViewColumn *col, GtkCellRenderer *r, GtkTreeModel *m, GtkTreeIter *it, gpointer data);
 
+static void expense_open(GtkWidget *w, ctx_t *ctx);
+
 GtkWidget *mainwin_new() {
     GtkWidget *win;
     GtkWidget *vbox;
     GtkWidget *mb;
     GtkWidget *tv;
+    ctx_t *ctx;
+
+    ctx = malloc(sizeof(ctx_t));
+    ctx->db = NULL;
 
     win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(win), "Expense Buddy");
     gtk_window_set_default_size(GTK_WINDOW(win), 480, 480);
 
-    mb = create_menubar();
+    mb = create_menubar(ctx);
     tv = create_treeview();
 
     vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
@@ -41,7 +61,7 @@ GtkWidget *mainwin_new() {
     return win;
 }
 
-static GtkWidget *create_menubar() {
+static GtkWidget *create_menubar(ctx_t *ctx) {
     GtkWidget *mb;
     GtkWidget *m;
     GtkWidget *mi_expense, *mi_expense_new, *mi_expense_open, *mi_sep1, *mi_expense_add, *mi_expense_edit, *mi_expense_delete, *mi_sep2, *mi_expense_about, *mi_expense_quit;
@@ -71,18 +91,14 @@ static GtkWidget *create_menubar() {
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi_expense), m);
     gtk_menu_shell_append(GTK_MENU_SHELL(mb), mi_expense);
 
+    g_signal_connect(mi_expense_open, "activate", G_CALLBACK(expense_open), ctx);
+
     return mb;
 }
 
-enum exp_field_t {
-    EXP_FIELD_EXPID,
-    EXP_FIELD_DATE,
-    EXP_FIELD_DESC,
-    EXP_FIELD_AMT,
-    EXP_FIELD_CATID,
-    EXP_FIELD_CATNAME,
-    EXP_FIELD_NCOLS
-};
+static void expense_open(GtkWidget *w, ctx_t *ctx) {
+    printf("expense open\n");
+}
 
 static GtkWidget *create_treeview() {
     GtkWidget *tv;

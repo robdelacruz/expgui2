@@ -73,22 +73,22 @@ static int db_init_tables(sqlite3 *db) {
     return 0;
 }
 
-int create_dbfile(char *dbfile) {
+int create_expense_file(char *dbfile, sqlite3 **pdb) {
     sqlite3 *db;
     int z;
 
-    z = sqlite3_open(dbfile, &db);
+    z = sqlite3_open(dbfile, pdb);
+    db = *pdb;
     if (z != 0) {
         fprintf(stderr, "Error opening dbfile '%s': %s\n", dbfile, sqlite3_errmsg(db));
         sqlite3_close_v2(db);
         return 1;
     }
     db_init_tables(db);
-    sqlite3_close_v2(db);
     return 0;
 }
 
-int open_dbfile(char *dbfile, sqlite3 **pdb) {
+int open_expense_file(char *dbfile, sqlite3 **pdb) {
     sqlite3 *db;
     char *s;
     char *err;

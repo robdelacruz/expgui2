@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 
         // -i dbfile
         if (strcmp(s, "-i") == 0 && i < argc-1) {
-            z = create_dbfile(argv[i+1]);
+            z = create_expense_file(argv[i+1], &db);
             if (z != 0)
                 exit(1);
             i++;
@@ -37,7 +37,7 @@ int main(int argc, char *argv[]) {
         exit(0);
 
     printf("dbfile: %s\n", dbfile);
-    z = open_dbfile(dbfile, &db);
+    z = open_expense_file(dbfile, &db);
     if (z != 0) {
         exit(1);
     }
