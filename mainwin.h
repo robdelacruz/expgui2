@@ -5,6 +5,6 @@
 #include "clib.h"
 #include "db.h"
 
-GtkWidget *mainwin_new();
+GtkWidget *mainwin_new(char *xpfile);
 
 #endif

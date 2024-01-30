@@ -22,6 +22,8 @@ enum exp_field_t {
 
 typedef struct {
     sqlite3 *db;
+    str_t *xpfile;
+    GtkWidget *win;
 } ctx_t;
 
 static GtkWidget *create_menubar(ctx_t *ctx);
@@ -34,19 +36,27 @@ static void date_datafunc(GtkTreeViewColumn *col, GtkCellRenderer *r, GtkTreeMod
 
 static void expense_open(GtkWidget *w, ctx_t *ctx);
 
-GtkWidget *mainwin_new() {
+GtkWidget *mainwin_new(char *xpfile) {
     GtkWidget *win;
     GtkWidget *vbox;
     GtkWidget *mb;
     GtkWidget *tv;
     ctx_t *ctx;
-
-    ctx = malloc(sizeof(ctx_t));
-    ctx->db = NULL;
+    sqlite3 *db;
 
     win = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(win), "Expense Buddy");
     gtk_window_set_default_size(GTK_WINDOW(win), 480, 480);
+
+    ctx = malloc(sizeof(ctx_t));
+    ctx->db = NULL;
+    ctx->xpfile = str_new(0);
+    ctx->win = win;
+
+    if (xpfile != NULL && open_expense_file(xpfile, &db) == 0) {
+        ctx->db = db;
+        str_assign(ctx->xpfile, xpfile);
+    }
 
     mb = create_menubar(ctx);
     tv = create_treeview();
@@ -97,7 +107,35 @@ static GtkWidget *create_menubar(ctx_t *ctx) {
 }
 
 static void expense_open(GtkWidget *w, ctx_t *ctx) {
-    printf("expense open\n");
+    GtkWidget *dlg;
+    gchar *xpfile = NULL;
+    sqlite3 *db;
+    int z;
+
+    dlg = gtk_file_chooser_dialog_new("Open Expense File", GTK_WINDOW(ctx->win),
+                                      GTK_FILE_CHOOSER_ACTION_OPEN,
+                                      "Open", GTK_RESPONSE_ACCEPT,
+                                      "Cancel", GTK_RESPONSE_CANCEL,
+                                      NULL);
+    z = gtk_dialog_run(GTK_DIALOG(dlg));
+    if (z != GTK_RESPONSE_ACCEPT)
+        goto exit;
+
+    xpfile = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dlg));
+    if (xpfile == NULL)
+        goto exit;
+
+    z = open_expense_file(xpfile, &db);
+    if (z != 0)
+        goto exit;
+
+    ctx->db = db;
+    str_assign(ctx->xpfile, xpfile);
+
+exit:
+    if (xpfile != NULL)
+        g_free(xpfile);
+    gtk_widget_destroy(dlg);
 }
 
 static GtkWidget *create_treeview() {

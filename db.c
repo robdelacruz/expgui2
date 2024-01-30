@@ -110,6 +110,8 @@ int open_expense_file(char *dbfile, sqlite3 **pdb) {
         sqlite3_close_v2(db);
         return 1;
     }
+
+    fprintf(stderr, "Opened dbfile '%s'\n", dbfile);
     return 0;
 }
 

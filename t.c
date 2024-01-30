@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
     for (int i=1; i < argc; i++) {
         char *s = argv[i];
 
-        // -i dbfile
+        // prog -i dbfile
         if (strcmp(s, "-i") == 0 && i < argc-1) {
             z = create_expense_file(argv[i+1], &db);
             if (z != 0)
@@ -29,21 +29,12 @@ int main(int argc, char *argv[]) {
             break;
         }
 
-        // dbfile
+        // prog dbfile
         dbfile = s;
     }
 
-    if (dbfile == NULL)
-        exit(0);
-
-    printf("dbfile: %s\n", dbfile);
-    z = open_expense_file(dbfile, &db);
-    if (z != 0) {
-        exit(1);
-    }
-
     gtk_init(&argc, &argv);
-    w = mainwin_new();
+    w = mainwin_new(dbfile);
 
     gtk_widget_show_all(w);
 
