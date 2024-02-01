@@ -1,6 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <assert.h>
+#include <errno.h>
+#include <unistd.h>
 #include "db.h"
 #include "sqlite3/sqlite3.h"
 
@@ -73,44 +76,68 @@ static int db_init_tables(sqlite3 *db) {
     return 0;
 }
 
-int create_expense_file(char *dbfile, sqlite3 **pdb) {
+int create_tmp_expense_file(str_t *retdbfile, sqlite3 **pdb, str_t *err) {
+    char template[] = "/tmp/expXXXXXX";
+    int fd;
+
+    fd = mkstemp(template);
+    if (fd == -1) {
+        if (err != NULL)
+            str_assign(err, strerror(errno));
+        return 1;
+    }
+    close(fd);
+
+    str_assign(retdbfile, template);
+    return create_expense_file(template, pdb, err);
+}
+
+int create_expense_file(char *dbfile, sqlite3 **pdb, str_t *err) {
     sqlite3 *db;
     int z;
 
     z = sqlite3_open(dbfile, pdb);
     db = *pdb;
     if (z != 0) {
-        fprintf(stderr, "Error opening dbfile '%s': %s\n", dbfile, sqlite3_errmsg(db));
+        if (err != NULL)
+            str_assign(err, (char*) sqlite3_errmsg(db));
         sqlite3_close_v2(db);
         return 1;
     }
     db_init_tables(db);
+
+    if (err != NULL)
+        str_assign(err, "");
     return 0;
 }
 
-int open_expense_file(char *dbfile, sqlite3 **pdb) {
+int open_expense_file(char *dbfile, sqlite3 **pdb, str_t *err) {
     sqlite3 *db;
     char *s;
-    char *err;
     int z;
 
     z = sqlite3_open(dbfile, pdb);
     db = *pdb;
     if (z != 0) {
-        fprintf(stderr, "Error opening dbfile '%s': %s\n", dbfile, sqlite3_errmsg(db));
+        if (err != NULL)
+            str_assign(err, (char*) sqlite3_errmsg(db));
         return 1;
     }
     if (!db_is_database_file(db)) {
-        fprintf(stderr, "'%s' not a database file\n", dbfile);
+        if (err != NULL)
+            str_assign(err, "Not an expense file");
         sqlite3_close_v2(db);
         return 1;
     }
     if (!db_is_tables_exist(db)) {
-        fprintf(stderr, "dbfile '%s' not initialized\n", dbfile);
+        if (err != NULL)
+            str_assign(err, "Not an expense file");
         sqlite3_close_v2(db);
         return 1;
     }
 
+    if (err != NULL)
+        str_assign(err, "");
     fprintf(stderr, "Opened dbfile '%s'\n", dbfile);
     return 0;
 }

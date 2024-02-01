@@ -34,6 +34,7 @@ static void set_treeview_row(GtkListStore *m, GtkTreeIter *it, exp_t *xp);
 static void amt_datafunc(GtkTreeViewColumn *col, GtkCellRenderer *r, GtkTreeModel *m, GtkTreeIter *it, gpointer data);
 static void date_datafunc(GtkTreeViewColumn *col, GtkCellRenderer *r, GtkTreeModel *m, GtkTreeIter *it, gpointer data);
 
+static void expense_new(GtkWidget *w, ctx_t *ctx);
 static void expense_open(GtkWidget *w, ctx_t *ctx);
 
 GtkWidget *mainwin_new(char *xpfile) {
@@ -53,7 +54,7 @@ GtkWidget *mainwin_new(char *xpfile) {
     ctx->xpfile = str_new(0);
     ctx->win = win;
 
-    if (xpfile != NULL && open_expense_file(xpfile, &db) == 0) {
+    if (xpfile != NULL && open_expense_file(xpfile, &db, NULL) == 0) {
         ctx->db = db;
         str_assign(ctx->xpfile, xpfile);
     }
@@ -101,14 +102,44 @@ static GtkWidget *create_menubar(ctx_t *ctx) {
     gtk_menu_item_set_submenu(GTK_MENU_ITEM(mi_expense), m);
     gtk_menu_shell_append(GTK_MENU_SHELL(mb), mi_expense);
 
+    g_signal_connect(mi_expense_new, "activate", G_CALLBACK(expense_new), ctx);
     g_signal_connect(mi_expense_open, "activate", G_CALLBACK(expense_open), ctx);
 
     return mb;
 }
 
+static void expense_new(GtkWidget *w, ctx_t *ctx) {
+    str_t *xpfile = str_new(0);
+    str_t *err = str_new(0);
+    sqlite3 *db;
+    int z;
+
+    z = create_tmp_expense_file(xpfile, &db, err);
+    if (z != 0) {
+        GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(ctx->win),
+                                              GTK_DIALOG_MODAL,
+                                              GTK_MESSAGE_ERROR,
+                                              GTK_BUTTONS_OK,
+                                              "Create new file error:\n\n%s",
+                                              err->s);
+        gtk_dialog_run(GTK_DIALOG(d));
+        gtk_widget_destroy(d);
+        goto exit;
+    }
+
+    ctx->db = db;
+    str_assign(ctx->xpfile, xpfile->s);
+
+    printf("New file: '%s'\n", xpfile->s);
+
+exit:
+    str_free(xpfile);
+    str_free(err);
+}
 static void expense_open(GtkWidget *w, ctx_t *ctx) {
-    GtkWidget *dlg;
+    GtkWidget *dlg = NULL;
     gchar *xpfile = NULL;
+    str_t *err = NULL;
     sqlite3 *db;
     int z;
 
@@ -120,14 +151,25 @@ static void expense_open(GtkWidget *w, ctx_t *ctx) {
     z = gtk_dialog_run(GTK_DIALOG(dlg));
     if (z != GTK_RESPONSE_ACCEPT)
         goto exit;
-
     xpfile = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dlg));
     if (xpfile == NULL)
         goto exit;
+    gtk_widget_destroy(dlg);
+    dlg = NULL;
 
-    z = open_expense_file(xpfile, &db);
-    if (z != 0)
+    err = str_new(0);
+    z = open_expense_file(xpfile, &db, err);
+    if (z != 0) {
+        GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(ctx->win),
+                                              GTK_DIALOG_MODAL,
+                                              GTK_MESSAGE_ERROR,
+                                              GTK_BUTTONS_OK,
+                                              "Unable to open '%s'\n\n%s",
+                                              xpfile, err->s);
+        gtk_dialog_run(GTK_DIALOG(d));
+        gtk_widget_destroy(d);
         goto exit;
+    }
 
     ctx->db = db;
     str_assign(ctx->xpfile, xpfile);
@@ -135,7 +177,10 @@ static void expense_open(GtkWidget *w, ctx_t *ctx) {
 exit:
     if (xpfile != NULL)
         g_free(xpfile);
-    gtk_widget_destroy(dlg);
+    if (err != NULL)
+        str_free(err);
+    if (dlg != NULL)
+        gtk_widget_destroy(dlg);
 }
 
 static GtkWidget *create_treeview() {

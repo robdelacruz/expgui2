@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
 
         // prog -i dbfile
         if (strcmp(s, "-i") == 0 && i < argc-1) {
-            z = create_expense_file(argv[i+1], &db);
+            z = create_expense_file(argv[i+1], &db, NULL);
             if (z != 0)
                 exit(1);
             i++;
