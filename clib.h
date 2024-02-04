@@ -52,6 +52,7 @@ void arena_reset(arena_t *a);
 str_t *str_new(size_t cap);
 void str_free(str_t *str);
 void str_assign(str_t *str, char *s);
+void str_sprintf(str_t *str, char *fmt, ...);
 
 date_t *date_new(time_t t);
 date_t *date_new_today();

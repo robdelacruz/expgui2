@@ -24,6 +24,8 @@ typedef struct {
     sqlite3 *db;
     str_t *xpfile;
     GtkWidget *win;
+
+    str_t *str1;
 } ctx_t;
 
 static GtkWidget *create_menubar(ctx_t *ctx);
@@ -37,6 +39,25 @@ static void date_datafunc(GtkTreeViewColumn *col, GtkCellRenderer *r, GtkTreeMod
 static void expense_new(GtkWidget *w, ctx_t *ctx);
 static void expense_open(GtkWidget *w, ctx_t *ctx);
 
+static ctx_t *create_ctx(GtkWidget *win) {
+    ctx_t *ctx = malloc(sizeof(ctx_t));
+    ctx->db = NULL;
+    ctx->xpfile = str_new(0);
+    ctx->win = win;
+    ctx->str1 = str_new(0);
+    return ctx;
+}
+
+static void free_ctx(ctx_t *ctx) {
+    if (ctx->db)
+        sqlite3_close_v2(ctx->db);
+    if (ctx->xpfile)
+        str_free(ctx->xpfile);
+    if (ctx->str1)
+        str_free(ctx->str1);
+    free(ctx);
+}
+
 GtkWidget *mainwin_new(char *xpfile) {
     GtkWidget *win;
     GtkWidget *vbox;
@@ -49,10 +70,7 @@ GtkWidget *mainwin_new(char *xpfile) {
     gtk_window_set_title(GTK_WINDOW(win), "Expense Buddy");
     gtk_window_set_default_size(GTK_WINDOW(win), 480, 480);
 
-    ctx = malloc(sizeof(ctx_t));
-    ctx->db = NULL;
-    ctx->xpfile = str_new(0);
-    ctx->win = win;
+    ctx = create_ctx(win);
 
     if (xpfile != NULL && open_expense_file(xpfile, &db, NULL) == 0) {
         ctx->db = db;
@@ -108,33 +126,69 @@ static GtkWidget *create_menubar(ctx_t *ctx) {
     return mb;
 }
 
+static char *base_filename(char *filepath) {
+    char *p = rindex(filepath, '/');
+    if (p == NULL)
+        return filepath;
+    return p+1;
+}
+
+static void refresh_window_title(ctx_t *ctx) {
+    if (ctx->xpfile == NULL) {
+        gtk_window_set_title(GTK_WINDOW(ctx->win), "Expense Buddy");
+        return;
+    }
+
+    str_sprintf(ctx->str1, "Expense Buddy - %s", base_filename(ctx->xpfile->s));
+    gtk_window_set_title(GTK_WINDOW(ctx->win), ctx->str1->s);
+}
+
 static void expense_new(GtkWidget *w, ctx_t *ctx) {
-    str_t *xpfile = str_new(0);
-    str_t *err = str_new(0);
+    GtkWidget *dlg = NULL;
+    gchar *xpfile = NULL;
+    str_t *err = NULL;
     sqlite3 *db;
     int z;
 
-    z = create_tmp_expense_file(xpfile, &db, err);
+    dlg = gtk_file_chooser_dialog_new("Create Expense File", GTK_WINDOW(ctx->win),
+                                      GTK_FILE_CHOOSER_ACTION_SAVE,
+                                      "Create", GTK_RESPONSE_ACCEPT,
+                                      "Cancel", GTK_RESPONSE_CANCEL,
+                                      NULL);
+    z = gtk_dialog_run(GTK_DIALOG(dlg));
+    if (z != GTK_RESPONSE_ACCEPT)
+        goto exit;
+    xpfile = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dlg));
+    if (xpfile == NULL)
+        goto exit;
+    gtk_widget_destroy(dlg);
+    dlg = NULL;
+
+    err = str_new(0);
+    z = create_expense_file(xpfile, &db, err);
     if (z != 0) {
         GtkWidget *d = gtk_message_dialog_new(GTK_WINDOW(ctx->win),
                                               GTK_DIALOG_MODAL,
                                               GTK_MESSAGE_ERROR,
                                               GTK_BUTTONS_OK,
-                                              "Create new file error:\n\n%s",
-                                              err->s);
+                                              "Unable to create '%s'\n\n%s",
+                                              base_filename(xpfile), err->s);
         gtk_dialog_run(GTK_DIALOG(d));
         gtk_widget_destroy(d);
         goto exit;
     }
 
     ctx->db = db;
-    str_assign(ctx->xpfile, xpfile->s);
-
-    printf("New file: '%s'\n", xpfile->s);
+    str_assign(ctx->xpfile, xpfile);
+    refresh_window_title(ctx);
 
 exit:
-    str_free(xpfile);
-    str_free(err);
+    if (xpfile != NULL)
+        g_free(xpfile);
+    if (err != NULL)
+        str_free(err);
+    if (dlg != NULL)
+        gtk_widget_destroy(dlg);
 }
 static void expense_open(GtkWidget *w, ctx_t *ctx) {
     GtkWidget *dlg = NULL;
@@ -165,7 +219,7 @@ static void expense_open(GtkWidget *w, ctx_t *ctx) {
                                               GTK_MESSAGE_ERROR,
                                               GTK_BUTTONS_OK,
                                               "Unable to open '%s'\n\n%s",
-                                              xpfile, err->s);
+                                              base_filename(xpfile), err->s);
         gtk_dialog_run(GTK_DIALOG(d));
         gtk_widget_destroy(d);
         goto exit;
@@ -173,6 +227,7 @@ static void expense_open(GtkWidget *w, ctx_t *ctx) {
 
     ctx->db = db;
     str_assign(ctx->xpfile, xpfile);
+    refresh_window_title(ctx);
 
 exit:
     if (xpfile != NULL)

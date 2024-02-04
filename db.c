@@ -3,6 +3,8 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "db.h"
 #include "sqlite3/sqlite3.h"
@@ -59,20 +61,23 @@ static int db_is_tables_exist(sqlite3 *db) {
     sqlite3_finalize(stmt);
     return 1;
 }
-static int db_init_tables(sqlite3 *db) {
+static int db_init_tables(sqlite3 *db, str_t *err) {
     char *s;
-    char *err;
+    char *serr;
     int z;
 
     s = "CREATE TABLE IF NOT EXISTS cat (cat_id INTEGER PRIMARY KEY NOT NULL, name TEXT);"
         "CREATE TABLE IF NOT EXISTS exp (exp_id INTEGER PRIMARY KEY NOT NULL, date TEXT NOT NULL, desc TEXT NOT NULL DEFAULT '', amt REAL NOT NULL DEFAULT 0.0, cat_id INTEGER NOT NULL DEFAULT 1);";
-    z = sqlite3_exec(db, s, 0, 0, &err);
+    z = sqlite3_exec(db, s, 0, 0, &serr);
     if (z != 0) {
-        fprintf(stderr, "SQL Error: %s\n", err);
-        sqlite3_free(err);
+        if (err != NULL)
+            str_assign(err, serr);
+        sqlite3_free(serr);
         sqlite3_close_v2(db);
         return 1;
     }
+    if (err != NULL)
+        str_assign(err, "");
     return 0;
 }
 
@@ -93,8 +98,15 @@ int create_tmp_expense_file(str_t *retdbfile, sqlite3 **pdb, str_t *err) {
 }
 
 int create_expense_file(char *dbfile, sqlite3 **pdb, str_t *err) {
+    struct stat st;
     sqlite3 *db;
     int z;
+
+    if (stat(dbfile, &st) == 0) {
+        if (err != NULL)
+            str_assign(err, "file exists");
+        return 1;
+    }
 
     z = sqlite3_open(dbfile, pdb);
     db = *pdb;
@@ -104,7 +116,11 @@ int create_expense_file(char *dbfile, sqlite3 **pdb, str_t *err) {
         sqlite3_close_v2(db);
         return 1;
     }
-    db_init_tables(db);
+    z = db_init_tables(db, err);
+    if (z != 0) {
+        sqlite3_close_v2(db);
+        return 1;
+    }
 
     if (err != NULL)
         str_assign(err, "");

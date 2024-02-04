@@ -232,7 +232,6 @@ void str_free(str_t *str) {
     free(str->s);
     free(str);
 }
-
 void str_assign(str_t *str, char *s) {
     size_t s_len = strlen(s);
     if (s_len+1 > str->cap) {
@@ -243,6 +242,19 @@ void str_assign(str_t *str, char *s) {
     strncpy(str->s, s, s_len);
     str->s[s_len] = 0;
     str->len = s_len;
+}
+void str_sprintf(str_t *str, char *fmt, ...) {
+    char *p = NULL;
+    va_list args;
+    int z;
+
+    va_start(args, fmt);
+    if (vasprintf(&p, fmt, args) == -1)
+        panic("vasprintf() out of memory");
+    va_end(args);
+
+    str_assign(str, p);
+    free(p);
 }
 
 array_t *array_new(size_t cap) {
