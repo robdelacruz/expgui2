@@ -81,6 +81,13 @@ static int db_init_tables(sqlite3 *db, str_t *err) {
     return 0;
 }
 
+int file_exists(char *file) {
+    struct stat st;
+    if (stat(file, &st) == 0)
+        return 1;
+    return 0;
+}
+
 int create_tmp_expense_file(str_t *retdbfile, sqlite3 **pdb, str_t *err) {
     char template[] = "/tmp/expXXXXXX";
     int fd;
