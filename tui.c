@@ -77,7 +77,20 @@ void tui_start(sqlite3 *db, char *dbfile) {
     tb_shutdown();
 }
 
+static void listbox_draw_xp_row(listbox_t *lb, int irow, uintattr_t fg, uintattr_t bg) {
+    char buf[4096];
+    char isodate[ISO_DATE_LEN+1];
+    exp_t *xp = lb->rows->items[irow];
+
+    date_to_iso(xp->date, isodate, sizeof(isodate));
+    snprintf(buf, sizeof(buf), "%s %s %.2f %s", isodate, xp->desc->s, xp->amt, xp->catname->s);
+    listbox_draw_string_row(lb, buf, irow, fg, bg);
+}
+
 static void listbox_update(listbox_t *lb, struct tb_event *ev) {
+    if (lb->rows->len == 0)
+        return;
+
     if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
         lb->sel--;
     if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
@@ -101,25 +114,10 @@ static void listbox_update(listbox_t *lb, struct tb_event *ev) {
         lb->scrollpos = lb->rows->len-1;
 }
 
-static void listbox_draw_xp_row(listbox_t *lb, int irow, uintattr_t fg, uintattr_t bg) {
-    char buf[4096];
-    char isodate[ISO_DATE_LEN+1];
-    exp_t *xp = lb->rows->items[irow];
-
-    date_to_iso(xp->date, isodate, sizeof(isodate));
-    snprintf(buf, sizeof(buf), "%s %s %.2f %s", isodate, xp->desc->s, xp->amt, xp->catname->s);
-    listbox_draw_string_row(lb, buf, irow, fg, bg);
-}
-
 static void listbox_draw(listbox_t *lb) {
     int irow = 0;
     exp_t *xp;
     listbox_draw_row_fn *draw_row;
-
-    if (lb->sel > lb->rows->len-1)
-        lb->sel = lb->rows->len-1;
-    if (lb->scrollpos > lb->rows->len-1)
-        lb->scrollpos = lb->rows->len-1;
 
     if (lb->draw_row != NULL)
         draw_row = lb->draw_row;
