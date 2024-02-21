@@ -1,5 +1,5 @@
-PROGSRC=t.c db.c clib.c mainwin.c
-PROG2SRC=t2.c db.c clib.c tui.c
+TSRC=t.c db.c clib.c mainwin.c
+T2SRC=t2.c db.c clib.c tui.c tuilib.c
 LIBSRC=
 
 # pkg-config --cflags --libs gtk+-3.0
@@ -18,7 +18,7 @@ dep:
 	apt install libgtk-3-dev
 
 #.SILENT:
-t: $(PROGSRC) sqlite3.o
+t: $(TSRC) sqlite3.o
 	gcc $(CFLAGS) $(GTK_CFLAGS) -o $@ $^ $(LIBS) $(GTK_LIBS)
 
 sqlite3.o: sqlite3/sqlite3.c
@@ -27,7 +27,7 @@ sqlite3.o: sqlite3/sqlite3.c
 termbox2.o: termbox2.c
 	gcc -c -o $@ $^
 
-t2: $(PROG2SRC) sqlite3.o termbox2.o
+t2: $(T2SRC) sqlite3.o termbox2.o
 	gcc $(CFLAGS) -o $@ $^ $(LIBS)
 
 clean:
