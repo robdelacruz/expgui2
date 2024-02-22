@@ -15,6 +15,8 @@ void draw_ch_vert(char *ch, uint x, uint y, uint dy, clr_t fg, clr_t bg);
 void draw_clear(uint x, uint y, uint width, uint height, clr_t bg);
 void draw_box(uint x, uint y, uint width, uint height, clr_t fg, clr_t bg);
 void draw_box_fill(uint x, uint y, uint width, uint height, clr_t fg, clr_t bg);
+void draw_divider_vert(uint x, uint y, uint height, clr_t fg, clr_t bg);
+void draw_divider_horz(uint x, uint y, uint width, clr_t fg, clr_t bg);
 
-void print_text(char *s, uint x, uint y, size_t width, clr_t fg, clr_t bg);
+void print_text(char *s, uint x, uint y, size_t width, uint xpad, clr_t fg, clr_t bg);
 

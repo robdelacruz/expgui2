@@ -58,8 +58,8 @@ void draw_ch_vert(char *ch, uint x, uint y, uint dy, clr_t fg, clr_t bg) {
         tb_print(x,i, fg,bg, ch);
 }
 void draw_clear(uint x, uint y, uint width, uint height, clr_t bg) {
-    for (int j=y; j < y+height-1; j++) {
-        for (int i=x; i < x+width-1; i++)
+    for (int j=y; j < y+height; j++) {
+        for (int i=x; i < x+width; i++)
             tb_set_cell(i,j, ASC_SPACE, TB_DEFAULT,bg);
     }
 }
@@ -80,18 +80,38 @@ void draw_box_fill(uint x, uint y, uint width, uint height, clr_t fg, clr_t bg) 
     draw_clear(x,y, width,height, bg);
     draw_box(x,y, width,height, fg,bg);
 }
+void draw_divider_vert(uint x, uint y, uint height, clr_t fg, clr_t bg) {
+    draw_ch(ASC_TOPT, x,y, fg,bg);
+    draw_ch_vert(ASC_VERTLINE, x,y+1, height-2, fg,bg);
+    draw_ch(ASC_BOTTOMT, x,y+height-1, fg,bg);
+}
+void draw_divider_horz(uint x, uint y, uint width, clr_t fg, clr_t bg) {
+    draw_ch(ASC_LEFTT, x,y, fg,bg);
+    draw_ch_horz(ASC_HORZLINE, x+1,y, width-2, fg,bg);
+    draw_ch(ASC_RIGHTT, x+width-1,y, fg,bg);
+}
 
-void print_text(char *s, uint x, uint y, size_t width, clr_t fg, clr_t bg) {
+void print_text(char *s, uint x, uint y, size_t width, uint xpad, clr_t fg, clr_t bg) {
     size_t s_len = strlen(s);
+    uint xend = x+width-1;
     if (width == 0)
         width = s_len;
 
-    for (int i=0; i < width && i < s_len; i++) {
-        if (i == width-1 && i != s_len-1) {
-            draw_ch(ASC_ELLIPSIS, x+i,y, fg,bg);
+    draw_ch_horz(" ", x,y, xpad, fg,bg);
+    x+=xpad;
+
+    for (int i=0; i < s_len; i++) {
+        if (x == xend-xpad && i != s_len-1) {
+            draw_ch(ASC_ELLIPSIS, x,y, fg,bg);
+            x++;
             break;
         }
-        tb_set_cell(x+i,y, s[i], fg,bg);
+        tb_set_cell(x,y, s[i], fg,bg);
+        x++;
+    }
+    while (x <= xend) {
+        tb_set_cell(x,y, ASC_SPACE, fg,bg);
+        x++;
     }
 }
 
