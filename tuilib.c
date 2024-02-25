@@ -74,6 +74,19 @@ void draw_box(int x, int y, int width, int height, clr_t fg, clr_t bg) {
     draw_ch_vert(ASC_VERTLINE, x,y+1, height-2, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x+width-1,y+1, height-2, fg,bg);
 }
+void draw_box_ch(int x, int y, int width, int height, clr_t fg, clr_t bg, char *ch) {
+    if (width <= 2 || height <= 2)
+        return;
+
+    draw_ch(ch, x,y, fg,bg);
+    draw_ch(ch, x+width-1,y, fg,bg);
+    draw_ch(ch, x,y+height-1, fg,bg);
+    draw_ch(ch, x+width-1,y+height-1, fg,bg);
+    draw_ch_horz(ch, x+1,y, width-2, fg,bg);
+    draw_ch_horz(ch, x+1,y+height-1, width-2, fg,bg);
+    draw_ch_vert(ch, x,y+1, height-2, fg,bg);
+    draw_ch_vert(ch, x+width-1,y+1, height-2, fg,bg);
+}
 void draw_box_fill(int x, int y, int width, int height, clr_t fg, clr_t bg) {
     draw_clear(x,y, width,height, bg);
     draw_box(x,y, width,height, fg,bg);
@@ -111,5 +124,19 @@ void print_text(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
         tb_set_cell(x,y, ASC_SPACE, fg,bg);
         x++;
     }
+}
+void print_text_center(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
+    size_t s_len = strlen(s);
+    int dx;
+
+    if (s_len >= width) {
+        print_text(s, x,y, width, fg,bg);
+        return;
+    }
+
+    dx = width/2 - s_len/2;
+    x += dx;
+    width -= dx;
+    print_text(s, x,y, width, fg,bg);
 }
 

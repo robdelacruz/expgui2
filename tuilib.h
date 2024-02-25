@@ -15,10 +15,10 @@
 #define ASC_BLOCK_LOW   "░"
 #define ASC_BLOCK_MED   "▒"
 #define ASC_BLOCK_HIGH  "▓"
-#define ASC_BLOCKFULL   "█"
-#define ASC_BLOCKTOP    "▀"
-#define ASC_BLOCKBOTTOM "▄"
-#define ASC_BLOCKCENTER "■"
+#define ASC_BLOCK_FULL   "█"
+#define ASC_BLOCK_TOP    "▀"
+#define ASC_BLOCK_BOTTOM "▄"
+#define ASC_BLOCK_CENTER "■"
 #define ASC_SPACE       ' '
 
 typedef uintattr_t clr_t;
@@ -38,9 +38,11 @@ void draw_ch_horz(char *ch, int x, int y, int dx, clr_t fg, clr_t bg);
 void draw_ch_vert(char *ch, int x, int y, int dy, clr_t fg, clr_t bg);
 void draw_clear(int x, int y, int width, int height, clr_t bg);
 void draw_box(int x, int y, int width, int height, clr_t fg, clr_t bg);
+void draw_box_ch(int x, int y, int width, int height, clr_t fg, clr_t bg, char *ch);
 void draw_box_fill(int x, int y, int width, int height, clr_t fg, clr_t bg);
 void draw_divider_vert(int x, int y, int height, clr_t fg, clr_t bg);
 void draw_divider_horz(int x, int y, int width, clr_t fg, clr_t bg);
 
 void print_text(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
+void print_text_center(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 

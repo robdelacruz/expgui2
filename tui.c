@@ -7,12 +7,21 @@
 
 char *longtext = "This is some text that took me a long time to write.";
 
-clr_t boxfg = TB_GREEN;
-clr_t boxbg = TB_BLACK;
-clr_t textfg = TB_GREEN;
-clr_t textbg = TB_BLACK;
+// Use for TB_OUTPUT_NORMAL
+clr_t textfg = TB_WHITE;
+clr_t textbg = TB_BLUE;
+clr_t colfg = TB_YELLOW | TB_BOLD;
 clr_t textselfg = TB_BLACK;
-clr_t textselbg = TB_WHITE;
+clr_t textselbg = TB_CYAN;
+
+// Use for TB_OUTPUT_256
+#if 0
+clr_t textfg = 15;
+clr_t textbg = 19;
+clr_t colfg = 11;
+clr_t textselfg = 16;
+clr_t textselbg = 14;
+#endif
 
 rect_t screen = {0,0, 80,23};
 uint statusx=0, statusy=23;
@@ -20,9 +29,34 @@ array_t *xps=0;
 int sel_xps=0;
 exp_t *selxp = NULL;
 
-rect_t xpview_area = {1,1, 44,23};
-rect_t xpdetails_area = {46,1, 33,7};
+//rect_t xpview_area = {1,1, 44,23};
+//rect_t xpdetails_area = {46,1, 33,7};
+rect_t xpview_area;
+rect_t xpdetails_area;
 
+// xpview area segments
+// 1 + desc + 1 + amt + cat + 1 + date + 1
+int field_desc_size = 0; // remaining space available
+int field_amt_size = 9;
+int field_cat_size = 10;
+int field_date_size = 5;
+
+// xpdetail area segments
+// lbl + val + 1
+char *lbldesc = " Desc: ";
+char *lblamt  = " Amt : ";
+char *lblcat  = " Cat : ";
+char *lbldate = " Date: ";
+int num_labels = 4;
+int field_label_size = 0; // strlen(lbldesc)
+int field_val_size = 20;
+
+char *coldesc = "Description";
+char *colamt = "Amount";
+char *colcat = "Category";
+char *coldate = "Date";
+
+static void resize_fields();
 static void update(struct tb_event *ev);
 static void draw();
 static void draw_frame();
@@ -34,6 +68,8 @@ void tui_start(sqlite3 *db, char *dbfile) {
 
     tb_init();
     tb_set_input_mode(TB_INPUT_ALT);
+//    tb_set_output_mode(TB_OUTPUT_256);
+    tb_set_output_mode(TB_OUTPUT_NORMAL);
     tb_set_clear_attrs(textfg, textbg);
 
     screen.x = 0;
@@ -67,6 +103,23 @@ void tui_start(sqlite3 *db, char *dbfile) {
     tb_shutdown();
 }
 
+static void resize_fields() {
+    xpdetails_area.height = num_labels + 1 + 2; // (empty space) + (prompt line) + (textbox)
+    field_label_size = strlen(lbldesc);
+    xpdetails_area.width = field_label_size + field_val_size + 1;
+
+    xpview_area.width = tb_width() - xpdetails_area.width;
+    xpview_area.width -= 3; // leave room for border and dividing line
+    field_desc_size = xpview_area.width - (1 + field_amt_size + 1 + field_cat_size + 1 + field_date_size);
+
+    xpview_area.x = 1;
+    xpview_area.y = 3;
+    xpview_area.height = tb_height() - 2 - xpview_area.y + 1;
+
+    xpdetails_area.x = xpview_area.x + xpview_area.width + 1;
+    xpdetails_area.y = xpview_area.y-1;
+}
+
 static void update(struct tb_event *ev) {
     if (xps->len == 0)
         return;
@@ -87,26 +140,76 @@ static void update(struct tb_event *ev) {
 
 static void draw() {
     tb_clear();
+    resize_fields();
     draw_frame();
     draw_xpview();
-    draw_xpdetail(selxp);
+//    draw_xpdetail(selxp);
 
     tb_present();
 }
+
 static void draw_frame() {
-    char *asc = ASC_BLOCK_LOW;
-    clr_t fg = boxfg;
-    clr_t bg = boxbg;
+    rect_t r;
+    char *asc = ASC_BLOCK_MED;
+    clr_t fg = textfg;
+    clr_t bg = textbg;
+    int xcol, ycol;
 
-    draw_ch_horz(asc, 0,0, 80, fg,bg);
-    draw_ch_horz(asc, 0,24, 80, fg,bg);
-    draw_ch_horz(asc, 45,8, 34, fg,bg);
-    draw_ch_vert(asc, 0,0, 25, fg,bg);
-    draw_ch_vert(asc, 79,0, 25, fg,bg);
-    draw_ch_vert(asc, 45,0, 25, fg,bg);
+    print_text(" Expense Buddy Console", 0,0, tb_width(), textselfg | TB_BOLD, textselbg);
 
-    draw_clear(xpview_area.x, xpview_area.y, xpview_area.width, xpview_area.height, TB_YELLOW);
-    draw_clear(xpdetails_area.x, xpdetails_area.y, xpdetails_area.width, xpdetails_area.height, TB_CYAN);
+
+    // Border frame of xpview
+    // Make room for one row of column headings
+    r = outer_rect(xpview_area);
+    r.y -= 1;
+    r.height += 1;
+
+    draw_ch(ASC_TOPLEFT, r.x, r.y, fg,bg);
+    draw_ch(ASC_TOPT, r.x+r.width-1, r.y, fg,bg);
+    draw_ch(ASC_BOTTOMLEFT, r.x, r.y+r.height-1, fg,bg);
+    draw_ch(ASC_BOTTOMT, r.x+r.width-1, r.y+r.height-1, fg,bg);
+    draw_ch_horz(ASC_HORZLINE, r.x+1, r.y, r.width-2, fg,bg);
+    draw_ch_horz(ASC_HORZLINE, r.x+1, r.y+r.height-1, r.width-2, fg,bg);
+    draw_ch_vert(ASC_VERTLINE, r.x, r.y+1, r.height-2, fg,bg);
+    draw_ch_vert(ASC_VERTLINE, r.x+r.width-1, r.y+1, r.height-2, fg,bg);
+
+    // Column headings
+    xcol = r.x+1;
+    ycol = r.y+1;
+    print_text_center(coldesc, xcol,ycol, field_desc_size, colfg,bg);
+    xcol += field_desc_size;
+    draw_ch(ASC_VERTLINE, xcol,ycol, fg,bg);
+    xcol++;
+    print_text_center(colamt, xcol,ycol, field_amt_size, colfg,bg);
+    xcol += field_amt_size;
+    draw_ch(ASC_VERTLINE, xcol,ycol, fg,bg);
+    xcol++;
+    print_text_center(colcat, xcol,ycol, field_cat_size, colfg,bg);
+    xcol += field_cat_size;
+    draw_ch(ASC_VERTLINE, xcol,ycol, fg,bg);
+    xcol++;
+    print_text_center(coldate, xcol,ycol, field_date_size, colfg,bg);
+
+    // Column dividing lines
+    xcol = xpview_area.x + field_desc_size;
+    ycol = xpview_area.y;
+    draw_ch_vert(ASC_VERTLINE, xcol,ycol, xpview_area.height, fg,bg);
+    xcol += field_amt_size+1;
+    draw_ch_vert(ASC_VERTLINE, xcol,ycol, xpview_area.height, fg,bg);
+    xcol += field_cat_size+1;
+    draw_ch_vert(ASC_VERTLINE, xcol,ycol, xpview_area.height, fg,bg);
+
+    r = outer_rect(xpdetails_area);
+    draw_ch(ASC_TOPRIGHT, r.x+r.width-1, r.y, fg,bg);
+    draw_ch(ASC_BOTTOMRIGHT, r.x+r.width-1, r.y+r.height-1, fg,bg);
+    draw_ch(ASC_LEFTT, r.x, r.y+r.height-1, fg,bg);
+    draw_ch_horz(ASC_HORZLINE, r.x+1, r.y, r.width-2, fg,bg);
+    draw_ch_horz(ASC_HORZLINE, r.x+1, r.y+r.height-1, r.width-2, fg,bg);
+    draw_ch_vert(ASC_VERTLINE, r.x+r.width-1, r.y+1, r.height-2, fg,bg);
+
+    //draw_clear(xpview_area.x, xpview_area.y, xpview_area.width, xpview_area.height, TB_YELLOW);
+    //draw_clear(xpview_area.x, xpview_area.y, xpview_area.width, xpview_area.height, 19);
+    //draw_clear(xpdetails_area.x, xpdetails_area.y, xpdetails_area.width, xpdetails_area.height, TB_CYAN);
 }
 static void draw_xpview() {
     exp_t *xp;
@@ -129,35 +232,31 @@ static void draw_xpview() {
             bg = textbg;
         }
 
-        tb_set_cell(x,y, ASC_SPACE, fg,bg);
-        x++;
-        print_text(xp->desc->s, x,y, 15, fg,bg);
-        x+=15;
-        tb_set_cell(x,y, ASC_SPACE, fg,bg);
+        print_text(xp->desc->s, x,y, field_desc_size, fg,bg);
+        x+=field_desc_size;
+        draw_ch(ASC_VERTLINE, x,y, fg,bg);
         x++;
         tb_printf(x,y, fg,bg, "%9.2f", xp->amt);
-        x+=9;
-        tb_set_cell(x,y, ASC_SPACE, fg,bg);
+        x+=field_amt_size;
+        draw_ch(ASC_VERTLINE, x,y, fg,bg);
         x++;
         //print_text(xp->catname->s, x,y, 10, fg,bg);
-        print_text("Household", x,y, 10, fg,bg);
-        x+=10;
-        tb_set_cell(x,y, ASC_SPACE, fg,bg);
+        print_text("LongCatName12345", x,y, field_cat_size, fg,bg);
+        x+=field_cat_size;
+        draw_ch(ASC_VERTLINE, x,y, fg,bg);
         x++;
         date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
-        print_text(bufdate, x,y, 5, fg,bg);
-        x+=5;
-        tb_set_cell(x,y, ASC_SPACE, fg,bg);
-        x++;
-        assert(x == 45);
+        print_text(bufdate, x,y, field_date_size, fg,bg);
+        x+=field_date_size;
+        assert(x == xpview_area.x + xpview_area.width);
 
         y++;
         x = xpview_area.x;
         row++;
     }
-
 }
 static void draw_xpdetail(exp_t *xp) {
+#if 0
     clr_t fg, bg;
     int x = xpdetails_area.x;
     int y = xpdetails_area.y;
@@ -165,10 +264,6 @@ static void draw_xpdetail(exp_t *xp) {
     char bufdate[ISO_DATE_LEN+1];
 
     int lbl_len, val_len;
-    char *lbldesc = " Desc: ";
-    char *lblamt  = " Amt : ";
-    char *lblcat  = " Cat : ";
-    char *lbldate = " Date: ";
 
     if (xp == NULL)
         return;
@@ -196,6 +291,7 @@ static void draw_xpdetail(exp_t *xp) {
     print_text(bufdate, x+lbl_len,y, val_len, fg,bg);
 
     y++;
+#endif
 }
 
 
