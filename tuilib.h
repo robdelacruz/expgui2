@@ -33,7 +33,6 @@ typedef struct {
 typedef struct {
     rect_t frame;
     rect_t content;
-    int xpad, ypad;
     clr_t fg, bg;
 } panel_t;
 
@@ -52,7 +51,8 @@ void draw_divider_horz(int x, int y, int width, clr_t fg, clr_t bg);
 
 void print_text(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 void print_text_center(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
+void print_text_right(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 
-panel_t create_panel(int x, int y, int width, int height, int xpad, int ypad, clr_t fg, clr_t bg);
+panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad, clr_t fg, clr_t bg);
 void clear_panel(panel_t *p);
 

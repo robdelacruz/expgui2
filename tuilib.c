@@ -142,41 +142,45 @@ void print_text(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
 }
 void print_text_center(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
     size_t s_len = strlen(s);
-    int dx;
 
     if (s_len >= width) {
         print_text(s, x,y, width, fg,bg);
         return;
     }
 
-    dx = width/2 - s_len/2;
-    x += dx;
-    width -= dx;
-    print_text(s, x,y, width, fg,bg);
+    draw_ch_horz(" ", x,y, width, fg,bg);
+    x += width/2 - s_len/2;
+    tb_print(x,y, fg,bg, s);
+}
+void print_text_right(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
+    size_t s_len = strlen(s);
+
+    if (s_len >= width) {
+        print_text(s, x,y, width, fg,bg);
+        return;
+    }
+
+    draw_ch_horz(" ", x,y, width, fg,bg);
+    x = x + width - s_len;
+    tb_print(x,y, fg,bg, s);
 }
 
-panel_t create_panel(int x, int y, int width, int height, int xpad, int ypad, clr_t fg, clr_t bg) {
+panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad, clr_t fg, clr_t bg) {
     panel_t p;
 
-    assert(x >= 0);
-    assert(y >= 0);
-    assert(xpad >= 0);
-    assert(ypad >= 0);
-    assert(width > xpad*2 + 1);
-    assert(height > ypad*2 + 1);
+    assert(width > leftpad + rightpad + 1);
+    assert(height > toppad + bottompad + 1);
 
     p.frame.x = x;
     p.frame.y = y;
     p.frame.width = width;
     p.frame.height = height;
 
-    p.content.x = p.frame.x + 1 + xpad;
-    p.content.y = p.frame.y + 1 + ypad;
-    p.content.width = p.frame.width - 2 - xpad*2;
-    p.content.height = p.frame.height - 2 - ypad*2;
+    p.content.x = p.frame.x + 1 + leftpad;
+    p.content.y = p.frame.y + 1 + toppad;
+    p.content.width = p.frame.width - 2 - leftpad - rightpad;
+    p.content.height = p.frame.height - 2 - toppad - bottompad;
 
-    p.xpad = xpad;
-    p.ypad = ypad;
     p.fg = fg;
     p.bg = bg;
 
