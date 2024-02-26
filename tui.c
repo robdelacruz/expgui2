@@ -33,6 +33,7 @@ int ixps=0;
 int iscrollxps=0;
 
 panel_t explist;
+panel_t expedit;
 
 // Amount, Category, Date are fixed width fields
 // Description field width will consume the remaining horizontal space.
@@ -150,7 +151,7 @@ static void draw_explist() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
-    char bufstatus[64];
+    char buf[128];
     clr_t fg, bg;
     int x,y;
 
@@ -175,8 +176,8 @@ static void draw_explist() {
     // Column headings
     x = explist.content.x;
     y = explist.frame.y+1;
-    fg = textfg;
-    bg = textbg;
+    fg = explist.fg;
+    bg = explist.bg;
 
     x = draw_explist_field_col(x,y, col_desc, field_desc_size, field_xpad, colfg,bg);
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
@@ -236,8 +237,17 @@ static void draw_explist() {
     // Status line
     x = explist.content.x;
     y = explist.content.y + explist.content.height;
-    snprintf(bufstatus, sizeof(bufstatus), "Expense %d/%ld", ixps+1, xps->len);
-    print_text_right(bufstatus, x,y, explist.content.width, statusfg,statusbg);
+    draw_ch_horz(" ", x,y, explist.content.width, statusfg,statusbg);
+
+    if (xps->len > 0) {
+        xp = xps->items[ixps];
+        snprintf(buf, sizeof(buf), "%.*s %.2f", 50, xp->desc->s, xp->amt);
+        print_text(buf, x,y, explist.content.width, statusfg,statusbg);
+
+        snprintf(buf, sizeof(buf), "Expense %d/%ld", ixps+1, xps->len);
+        x = explist.content.x + explist.content.width - strlen(buf);
+        tb_print(x,y, statusfg,statusbg, buf);
+    }
 }
 
 static int draw_explist_field_col(int x, int y, char *col, int field_size, int field_xpad, clr_t fg, clr_t bg) {
