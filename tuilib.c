@@ -43,6 +43,10 @@ rect_t outer_rect(rect_t r) {
     r.height += 2;
     return r;
 }
+void center_screen_rect(rect_t *r) {
+    r->x = tb_width()/2 - r->width/2;
+    r->y = tb_height()/2 - r->height/2;
+}
 
 void draw_ch(char *ch, int x, int y, clr_t fg, clr_t bg) {
     tb_print(x,y, fg,bg, ch);
@@ -165,7 +169,7 @@ void print_text_right(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
     tb_print(x,y, fg,bg, s);
 }
 
-panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad, clr_t fg, clr_t bg) {
+panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad) {
     panel_t p;
 
     assert(width > leftpad + rightpad + 1);
@@ -181,14 +185,40 @@ panel_t create_panel(int x, int y, int width, int height, int leftpad, int right
     p.content.width = p.frame.width - 2 - leftpad - rightpad;
     p.content.height = p.frame.height - 2 - toppad - bottompad;
 
-    p.fg = fg;
-    p.bg = bg;
+    return p;
+}
+panel_t create_panel_center(int width, int height, int leftpad, int rightpad, int toppad, int bottompad) {
+    panel_t p;
+
+    assert(width > leftpad + rightpad + 1);
+    assert(height > toppad + bottompad + 1);
+
+    p.frame.x = tb_width()/2 - width/2;
+    p.frame.y = tb_height()/2 - height/2;
+    p.frame.width = width;
+    p.frame.height = height;
+
+    p.content.x = p.frame.x + 1 + leftpad;
+    p.content.y = p.frame.y + 1 + toppad;
+    p.content.width = p.frame.width - 2 - leftpad - rightpad;
+    p.content.height = p.frame.height - 2 - toppad - bottompad;
 
     return p;
 }
+void draw_panel(panel_t *p, clr_t fg, clr_t bg) {
+    draw_box_fill(p->frame, fg, bg);
+}
+void draw_panel_shadow(panel_t *p, clr_t fg, clr_t bg, clr_t shadowfg, clr_t shadowbg) {
+    int x,y;
+    draw_panel(p, fg,bg);
 
-void clear_panel(panel_t *p) {
-    draw_box_fill(p->frame, p->fg, p->bg);
-    //draw_clear(p->content, TB_YELLOW);
+    x = p->frame.x + p->frame.width;
+    y = p->frame.y+1;
+    draw_ch_vert(ASC_BLOCK_LOW, x,y,   p->frame.height, shadowfg,shadowbg);
+    draw_ch_vert(ASC_BLOCK_LOW, x+1,y, p->frame.height, shadowfg,shadowbg);
+
+    x = p->frame.x+1;
+    y = p->frame.y + p->frame.height;
+    draw_ch_horz(ASC_BLOCK_LOW, x,y, p->frame.width, shadowfg,shadowbg);
 }
 

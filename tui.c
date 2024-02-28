@@ -5,6 +5,9 @@
 #include "clib.h"
 #include "db.h"
 
+#define EXPLIST 0
+#define EXPEDIT 1
+
 char *longtext = "This is some text that took me a long time to write.";
 
 // Use for TB_OUTPUT_NORMAL
@@ -26,6 +29,10 @@ clr_t highlightbg = 14;
 clr_t colfg = 11;
 clr_t statusfg = 254;
 clr_t statusbg = 245;
+clr_t editfg = 236;
+clr_t editbg = 252;
+clr_t shadowfg = 235;
+clr_t shadowbg = 235;
 
 uint statusx=0, statusy=23;
 array_t *xps=0;
@@ -34,6 +41,7 @@ int iscrollxps=0;
 
 panel_t explist;
 panel_t expedit;
+int active_panel=EXPLIST;
 
 // Amount, Category, Date are fixed width fields
 // Description field width will consume the remaining horizontal space.
@@ -49,7 +57,7 @@ char *col_date = "Date";
 static void resize();
 static void update(struct tb_event *ev);
 static void draw();
-static void draw_frame();
+static void draw_shell();
 static void draw_explist();
 static int draw_explist_field_col(int x, int y, char *col, int field_size, int field_xpad, clr_t fg, clr_t bg);
 static int draw_explist_field(int x, int y, char *field, int field_size, int field_xpad, clr_t fg, clr_t bg);
@@ -58,7 +66,7 @@ void tui_start(sqlite3 *db, char *dbfile) {
     struct tb_event ev;
 
     tb_init();
-    tb_set_input_mode(TB_INPUT_ALT);
+    tb_set_input_mode(TB_INPUT_ESC);
     tb_set_output_mode(TB_OUTPUT_256);
 //    tb_set_output_mode(TB_OUTPUT_NORMAL);
     tb_set_clear_attrs(textfg, textbg);
@@ -99,38 +107,51 @@ static void printf_status(const char *fmt, ...) {
 }
 
 static void resize() {
-    explist = create_panel(0,1, tb_width(), tb_height()-2, 0,0, 1,1, textfg,textbg);
+    explist = create_panel(0,1, tb_width(), tb_height()-2, 0,0, 1,1);
+    expedit = create_panel_center(55,15, 0,0,0,0);
 }
 
 static void update(struct tb_event *ev) {
-    if (xps->len == 0)
-        return;
+    if (active_panel == EXPLIST) {
+        if (xps->len == 0)
+            return;
 
-    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
-        ixps--;
-    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
-        ixps++;
-    if (ev->key == TB_KEY_PGUP || ev->key == TB_KEY_CTRL_U)
-        ixps -= explist.content.height/2;
-    if (ev->key == TB_KEY_PGDN || ev->key == TB_KEY_CTRL_D)
-        ixps += explist.content.height/2;
+        if (ev->ch == 'e') {
+            active_panel = EXPEDIT;
+            return;
+        }
 
-    if (ixps < 0)
-        ixps = 0;
-    if (ixps > xps->len-1)
-        ixps = xps->len-1;
+        if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
+            ixps--;
+        if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
+            ixps++;
+        if (ev->key == TB_KEY_PGUP || ev->key == TB_KEY_CTRL_U)
+            ixps -= explist.content.height/2;
+        if (ev->key == TB_KEY_PGDN || ev->key == TB_KEY_CTRL_D)
+            ixps += explist.content.height/2;
 
-    if (ixps < iscrollxps)
-        iscrollxps = ixps;
-    if (ixps > iscrollxps + explist.content.height-1)
-        iscrollxps = ixps - (explist.content.height-1);
+        if (ixps < 0)
+            ixps = 0;
+        if (ixps > xps->len-1)
+            ixps = xps->len-1;
 
-    if (iscrollxps < 0)
-        iscrollxps = 0;
-    if (iscrollxps > xps->len-1)
-        iscrollxps = xps->len-1;
+        if (ixps < iscrollxps)
+            iscrollxps = ixps;
+        if (ixps > iscrollxps + explist.content.height-1)
+            iscrollxps = ixps - (explist.content.height-1);
 
-    assert(ixps >= 0 && ixps < xps->len);
+        if (iscrollxps < 0)
+            iscrollxps = 0;
+        if (iscrollxps > xps->len-1)
+            iscrollxps = xps->len-1;
+
+        assert(ixps >= 0 && ixps < xps->len);
+    } else if (active_panel == EXPEDIT) {
+        if (ev->key == TB_KEY_ESC) {
+            active_panel = EXPLIST;
+            return;
+        }
+    }
 }
 
 static void draw() {
@@ -138,13 +159,18 @@ static void draw() {
     tb_clear();
     printf_status("ixps: %d, iscrollxps: %d", ixps, iscrollxps);
 
-    draw_frame();
+    draw_shell();
     draw_explist();
+
+    if (active_panel == EXPEDIT) {
+        draw_panel_shadow(&expedit, editfg,editbg, shadowfg,shadowbg);
+        print_text_center("Edit Expense", expedit.content.x,expedit.content.y, expedit.content.width, editfg,editbg);
+    }
 
     tb_present();
 }
 
-static void draw_frame() {
+static void draw_shell() {
     print_text(" Expense Buddy Console", 0,0, tb_width(), highlightfg | TB_BOLD, highlightbg);
 }
 static void draw_explist() {
@@ -159,7 +185,7 @@ static void draw_explist() {
     int field_xpad;
     int field_desc_size;
 
-    clear_panel(&explist);
+    draw_panel(&explist, textfg,textbg);
 
     // 4 fields: Description, Amount, Category, Date
     num_fields = 4;
@@ -176,8 +202,8 @@ static void draw_explist() {
     // Column headings
     x = explist.content.x;
     y = explist.frame.y+1;
-    fg = explist.fg;
-    bg = explist.bg;
+    fg = textfg;
+    bg = textbg;
 
     x = draw_explist_field_col(x,y, col_desc, field_desc_size, field_xpad, colfg,bg);
     draw_ch(ASC_VERTLINE, x,y, fg,bg);

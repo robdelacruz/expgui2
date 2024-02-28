@@ -33,7 +33,6 @@ typedef struct {
 typedef struct {
     rect_t frame;
     rect_t content;
-    clr_t fg, bg;
 } panel_t;
 
 rect_t inner_rect(rect_t r);
@@ -53,6 +52,8 @@ void print_text(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 void print_text_center(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 void print_text_right(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 
-panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad, clr_t fg, clr_t bg);
-void clear_panel(panel_t *p);
+panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad);
+panel_t create_panel_center(int width, int height, int leftpad, int rightpad, int toppad, int bottompad);
+void draw_panel(panel_t *p, clr_t fg, clr_t bg);
+void draw_panel_shadow(panel_t *p, clr_t fg, clr_t bg, clr_t shadowfg, clr_t shadowbg);
 
