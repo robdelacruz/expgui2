@@ -168,6 +168,22 @@ void print_text_right(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) {
     x = x + width - s_len;
     tb_print(x,y, fg,bg, s);
 }
+void print_text_padded(char *s, int x, int y, size_t width, int xpad, clr_t fg, clr_t bg) {
+    draw_ch_horz(" ", x,y, xpad, fg,bg);
+    x += xpad;
+    print_text(s, x,y, width, fg,bg);
+    x += width;
+    draw_ch_horz(" ", x,y, xpad, fg,bg);
+    x += xpad;
+}
+void print_text_padded_center(char *s, int x, int y, size_t width, int xpad, clr_t fg, clr_t bg) {
+    draw_ch_horz(" ", x,y, xpad, fg,bg);
+    x += xpad;
+    print_text_center(s, x,y, width, fg,bg);
+    x += width;
+    draw_ch_horz(" ", x,y, xpad, fg,bg);
+    x += xpad;
+}
 
 panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad) {
     panel_t p;

@@ -18,17 +18,22 @@
 char *longtext = "This is some text that took me a long time to write.";
 
 // Use for TB_OUTPUT_NORMAL
-#if 0
 clr_t textfg = TB_WHITE;
 clr_t textbg = TB_BLUE;
 clr_t highlightfg = TB_BLACK;
 clr_t highlightbg = TB_CYAN;
+clr_t titlefg = TB_WHITE;
+clr_t titlebg = TB_BLUE;
 clr_t colfg = TB_YELLOW | TB_BOLD;
-clr_t statusfg = TB_BLACK;
-clr_t statusbg = TB_CYAN;
-#endif
+clr_t statusfg = TB_YELLOW;
+clr_t statusbg = TB_BLUE;
+clr_t editfg = TB_BLACK;
+clr_t editbg = TB_WHITE;
+clr_t shadowfg = TB_BLACK;
+clr_t shadowbg = TB_BLACK;
 
 // Use for TB_OUTPUT_256
+#if 0
 clr_t textfg = 15;
 clr_t textbg = 19;
 clr_t highlightfg = 16;
@@ -42,6 +47,7 @@ clr_t editfg = 236;
 clr_t editbg = 252;
 clr_t shadowfg = 235;
 clr_t shadowbg = 235;
+#endif
 
 uint statusx=0, statusy=23;
 array_t *xps=0;
@@ -76,8 +82,8 @@ void tui_start(sqlite3 *db, char *dbfile) {
 
     tb_init();
     tb_set_input_mode(TB_INPUT_ESC);
-    tb_set_output_mode(TB_OUTPUT_256);
-//    tb_set_output_mode(TB_OUTPUT_NORMAL);
+//    tb_set_output_mode(TB_OUTPUT_256);
+    tb_set_output_mode(TB_OUTPUT_NORMAL);
     tb_set_clear_attrs(textfg, textbg);
 
     statusx = 0;
@@ -187,9 +193,6 @@ static void draw_shell() {
     print_text(" Expense Buddy Console", 0,0, tb_width(), titlefg | TB_BOLD, titlebg);
 }
 
-static int draw_explist_field_col(int x, int y, char *col, int field_size, int field_xpad, clr_t fg, clr_t bg);
-static int draw_explist_field(int x, int y, char *field, int field_size, int field_xpad, clr_t fg, clr_t bg);
-
 static void draw_explist() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
@@ -199,7 +202,7 @@ static void draw_explist() {
     int x,y;
 
     int num_fields;
-    int field_xpad;
+    int xpad;
     int field_desc_size;
 
     explist = create_panel(0,1, tb_width(), tb_height()-2, 0,0, 1,1);
@@ -209,13 +212,13 @@ static void draw_explist() {
     num_fields = 4;
 
     // Add padding of one space to left and right of each field
-    field_xpad = 1;
+    xpad = 1;
 
     // Description
     field_desc_size = explist.content.width;
     field_desc_size -= field_amt_size + field_cat_size + field_date_size;
     field_desc_size -= num_fields-1;              // space for column separator
-    field_desc_size -= (num_fields)*field_xpad*2; // space for padding on left/right side.
+    field_desc_size -= (num_fields)*xpad*2;       // space for padding on left/right side.
 
     // Column headings
     x = explist.content.x;
@@ -223,19 +226,25 @@ static void draw_explist() {
     fg = textfg;
     bg = textbg;
 
-    x = draw_explist_field_col(x,y, col_desc, field_desc_size, field_xpad, colfg,bg);
+    print_text_padded_center(col_desc, x,y, field_desc_size, xpad, colfg,bg);
+    x += xpad + field_desc_size + xpad;
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
     x++;
-    x = draw_explist_field_col(x,y, col_amt, field_amt_size, field_xpad, colfg,bg);
+
+    print_text_padded_center(col_amt, x,y, field_amt_size, xpad, colfg,bg);
+    x += xpad + field_amt_size + xpad;
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
     x++;
-    x = draw_explist_field_col(x,y, col_cat, field_cat_size, field_xpad, colfg,bg);
+
+    print_text_padded_center(col_cat, x,y, field_cat_size, xpad, colfg,bg);
+    x += xpad + field_cat_size + xpad;
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
     x++;
-    x = draw_explist_field_col(x,y, col_date, field_date_size, field_xpad, colfg,bg);
+
+    print_text_padded_center(col_date, x,y, field_date_size, xpad, colfg,bg);
 
     x = explist.content.x;
     y = explist.content.y;
@@ -254,22 +263,26 @@ static void draw_explist() {
         }
 
         // Row values
-        x = draw_explist_field(x,y, xp->desc->s, field_desc_size, field_xpad, fg,bg);
+        print_text_padded(xp->desc->s, x,y, field_desc_size, xpad, fg,bg);
+        x += xpad + field_desc_size + xpad;
         draw_ch(ASC_VERTLINE, x,y, fg,bg);
         x++;
 
         snprintf(bufamt, sizeof(bufamt), "%9.2f", xp->amt);
-        x = draw_explist_field(x,y, bufamt, field_amt_size, field_xpad, fg,bg);
+        print_text_padded(bufamt, x,y, field_amt_size, xpad, fg,bg);
+        x += xpad + field_amt_size + xpad;
         draw_ch(ASC_VERTLINE, x,y, fg,bg);
         x++;
 
-        //x = draw_explist_field(x,y, xp->catname->s, field_cat_size, field_xpad, fg,bg);
-        x = draw_explist_field(x,y, "LongCatName12345", field_cat_size, field_xpad, fg,bg);
+        //x = draw_explist_field(x,y, xp->catname->s, field_cat_size, xpad, fg,bg);
+        print_text_padded("LongCatName12345", x,y, field_cat_size, xpad, fg,bg);
+        x += xpad + field_cat_size + xpad;
         draw_ch(ASC_VERTLINE, x,y, fg,bg);
         x++;
 
         date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
-        x = draw_explist_field(x,y, bufdate, field_date_size, field_xpad, fg,bg);
+        print_text_padded(bufdate, x,y, field_date_size, xpad, fg,bg);
+        x += xpad + field_date_size + xpad;
 
         assert(x == explist.content.x + explist.content.width);
 
@@ -293,47 +306,28 @@ static void draw_explist() {
         tb_print(x,y, statusfg,statusbg, buf);
     }
 }
-static int draw_explist_field_col(int x, int y, char *col, int field_size, int field_xpad, clr_t fg, clr_t bg) {
-    draw_ch_horz(" ", x,y, field_xpad, fg,bg);
-    x += field_xpad;
-    print_text_center(col, x,y, field_size, fg,bg);
-    x+=field_size;
-    draw_ch_horz(" ", x,y, field_xpad, fg,bg);
-    x += field_xpad;
-
-    return x;
-}
-static int draw_explist_field(int x, int y, char *field, int field_size, int field_xpad, clr_t fg, clr_t bg) {
-    draw_ch_horz(" ", x,y, field_xpad, fg,bg);
-    x += field_xpad;
-    print_text(field, x,y, field_size, fg,bg);
-    x+=field_size;
-    draw_ch_horz(" ", x,y, field_xpad, fg,bg);
-    x += field_xpad;
-
-    return x;
-}
 
 static void draw_expedit() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
     int labelx, valx, y;
+    int xpad = 0;
     size_t label_len = strlen(col_desc)+1;
-    size_t val_len = 25;
+    size_t val_len = 30;
     clr_t fg,bg;
 
     assert(xps->len > 0);
     assert(ixps < xps->len-1);
     xp = xps->items[ixps];
 
-    expedit = create_panel_center(55,15, 1,1,2,1);
+    expedit = create_panel_center(label_len + val_len + xpad*2 + 1+1+2, XPFIELD_LEN + 2+1+2, 1,1,2,1);
     draw_panel_shadow(&expedit, editfg,editbg, shadowfg,shadowbg);
     print_text_center("Edit Expense", expedit.content.x,expedit.frame.y+1, expedit.content.width, editfg | TB_BOLD,editbg);
 
     y = expedit.content.y;
     labelx = expedit.content.x;
-    valx = expedit.content.x + label_len;
+    valx = labelx + label_len;
 
     fg = editfg;
     bg = editbg;
@@ -342,7 +336,7 @@ static void draw_expedit() {
         bg = highlightbg;
     }
     print_text(col_desc, labelx,y, label_len, editfg,editbg);
-    print_text(xp->desc->s, valx,y, val_len, fg,bg);
+    print_text_padded(xp->desc->s, valx,y, val_len, xpad, fg,bg);
     y++;
 
     fg = editfg;
@@ -353,7 +347,7 @@ static void draw_expedit() {
     }
     print_text(col_amt, labelx,y, label_len, editfg,editbg);
     snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    print_text(bufamt, valx,y, val_len, fg,bg);
+    print_text_padded(bufamt, valx,y, val_len, xpad, fg,bg);
     y++;
 
     fg = editfg;
@@ -363,7 +357,7 @@ static void draw_expedit() {
         bg = highlightbg;
     }
     print_text(col_cat, labelx,y, label_len, editfg,editbg);
-    print_text("coffee", valx,y, val_len, fg,bg);
+    print_text_padded("coffee", valx,y, val_len, xpad, fg,bg);
     y++;
 
     fg = editfg;
@@ -374,7 +368,8 @@ static void draw_expedit() {
     }
     print_text(col_date, labelx,y, label_len, editfg,editbg);
     date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
-    print_text(bufdate, valx,y, val_len, fg,bg);
+    print_text_padded(bufdate, valx,y, val_len, xpad, fg,bg);
     y++;
+
 }
 
