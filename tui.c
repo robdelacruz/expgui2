@@ -8,13 +8,6 @@
 #define EXPLIST 0
 #define EXPEDIT 1
 
-#define XPFIELD_START 0
-#define XPFIELD_DESC 0
-#define XPFIELD_AMT 1
-#define XPFIELD_CAT 2
-#define XPFIELD_DATE 3
-#define XPFIELD_LEN 4
-
 char *longtext = "This is some text that took me a long time to write.";
 
 // Use for TB_OUTPUT_NORMAL
@@ -29,6 +22,8 @@ clr_t statusfg = TB_YELLOW;
 clr_t statusbg = TB_BLUE;
 clr_t editfg = TB_BLACK;
 clr_t editbg = TB_WHITE;
+clr_t editfieldfg = TB_BLACK;
+clr_t editfieldbg = TB_YELLOW;
 clr_t shadowfg = TB_BLACK;
 clr_t shadowbg = TB_BLACK;
 
@@ -58,7 +53,16 @@ panel_t explist;
 panel_t expedit;
 int active_panel = EXPLIST;
 
+#define XPFIELD_START 0
+#define XPFIELD_DESC 0
+#define XPFIELD_AMT 1
+#define XPFIELD_CAT 2
+#define XPFIELD_DATE 3
+#define XPFIELD_LEN 4
+
 int ixpfield = XPFIELD_DESC;
+int feditxpfield = 0;
+int icurxpfield = 0;
 
 // Amount, Category, Date are fixed width fields
 // Description field width will consume the remaining horizontal space.
@@ -66,10 +70,12 @@ int field_amt_size = 9;
 int field_cat_size = 10;
 int field_date_size = 5;
 
-char *col_desc = "Description";
-char *col_amt = "Amount";
-char *col_cat = "Category";
-char *col_date = "Date";
+char *colxpfield[] = {
+    "Description",
+    "Amount",
+    "Category",
+    "Date"
+};
 
 static void update(struct tb_event *ev);
 static void draw();
@@ -157,21 +163,44 @@ static void update(struct tb_event *ev) {
 
         assert(ixps >= 0 && ixps < xps->len);
     } else if (active_panel == EXPEDIT) {
-        if (ev->key == TB_KEY_ESC) {
-            active_panel = EXPLIST;
-            ixpfield = XPFIELD_START;
+        if (!feditxpfield) {
+            // Select field to edit
+            if (ev->key == TB_KEY_ESC) {
+                active_panel = EXPLIST;
+                ixpfield = XPFIELD_START;
+                return;
+            }
+
+            if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
+                ixpfield--;
+            if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
+                ixpfield++;
+
+            if (ixpfield < XPFIELD_START)
+                ixpfield = XPFIELD_START;
+            if (ixpfield >= XPFIELD_LEN)
+                ixpfield = XPFIELD_LEN-1;
+
+            if (ev->key == TB_KEY_ENTER) {
+                feditxpfield = 1;
+                icurxpfield = 0;
+            }
             return;
         }
 
-        if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
-            ixpfield--;
-        if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
-            ixpfield++;
-
-        if (ixpfield < XPFIELD_START)
-            ixpfield = XPFIELD_START;
-        if (ixpfield >= XPFIELD_LEN)
-            ixpfield = XPFIELD_LEN-1;
+        if (feditxpfield) {
+            // Editing field
+            if (ev->key == TB_KEY_ESC) {
+                feditxpfield = 0;
+                tb_set_cursor(0,0);
+                tb_hide_cursor();
+            } 
+            if (ev->key == TB_KEY_ENTER) {
+                feditxpfield = 0;
+                tb_set_cursor(0,0);
+                tb_hide_cursor();
+            }
+        }
     }
 }
 
@@ -204,8 +233,9 @@ static void draw_explist() {
     int num_fields;
     int xpad;
     int field_desc_size;
+    int ifield;
 
-    explist = create_panel(0,1, tb_width(), tb_height()-2, 0,0, 1,1);
+    explist = create_panel_frame(0,1, tb_width(), tb_height()-2, 0,0, 1,1);
     draw_panel(&explist, textfg,textbg);
 
     // 4 fields: Description, Amount, Category, Date
@@ -226,25 +256,29 @@ static void draw_explist() {
     fg = textfg;
     bg = textbg;
 
-    print_text_padded_center(col_desc, x,y, field_desc_size, xpad, colfg,bg);
+    ifield = XPFIELD_DESC;
+    print_text_padded_center(colxpfield[ifield], x,y, field_desc_size, xpad, colfg,bg);
     x += xpad + field_desc_size + xpad;
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
     x++;
 
-    print_text_padded_center(col_amt, x,y, field_amt_size, xpad, colfg,bg);
+    ifield = XPFIELD_AMT;
+    print_text_padded_center(colxpfield[ifield], x,y, field_amt_size, xpad, colfg,bg);
     x += xpad + field_amt_size + xpad;
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
     x++;
 
-    print_text_padded_center(col_cat, x,y, field_cat_size, xpad, colfg,bg);
+    ifield = XPFIELD_CAT;
+    print_text_padded_center(colxpfield[ifield], x,y, field_cat_size, xpad, colfg,bg);
     x += xpad + field_cat_size + xpad;
     draw_ch(ASC_VERTLINE, x,y, fg,bg);
     draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
     x++;
 
-    print_text_padded_center(col_date, x,y, field_date_size, xpad, colfg,bg);
+    ifield = XPFIELD_DATE;
+    print_text_padded_center(colxpfield[ifield], x,y, field_date_size, xpad, colfg,bg);
 
     x = explist.content.x;
     y = explist.content.y;
@@ -307,69 +341,67 @@ static void draw_explist() {
     }
 }
 
+static void draw_expedit_row(int ifield, int x, int y, int label_width, int field_width, int field_xpad, char *field_val);
+
 static void draw_expedit() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
-    int labelx, valx, y;
-    int xpad = 0;
-    size_t label_len = strlen(col_desc)+1;
-    size_t val_len = 30;
+    char bufprompt[1024];
+    int x,y;
+    int field_xpad = 1;
+    int panel_leftpad = 1;
+    int panel_rightpad = 1;
+    int panel_toppad = 2;
+    int panel_bottompad = 1;
+    int panel_height;
+    size_t label_width = strlen(colxpfield[XPFIELD_DESC])+1;
+    size_t field_width = 30;
+    int ifield;
     clr_t fg,bg;
 
     assert(xps->len > 0);
     assert(ixps < xps->len-1);
     xp = xps->items[ixps];
 
-    expedit = create_panel_center(label_len + val_len + xpad*2 + 1+1+2, XPFIELD_LEN + 2+1+2, 1,1,2,1);
+    panel_height = XPFIELD_LEN;
+    expedit = create_panel_center(label_width + field_width + field_xpad*2, panel_height, panel_leftpad, panel_rightpad, panel_toppad, panel_bottompad);
     draw_panel_shadow(&expedit, editfg,editbg, shadowfg,shadowbg);
     print_text_center("Edit Expense", expedit.content.x,expedit.frame.y+1, expedit.content.width, editfg | TB_BOLD,editbg);
 
+    x = expedit.content.x;
     y = expedit.content.y;
-    labelx = expedit.content.x;
-    valx = labelx + label_len;
-
-    fg = editfg;
-    bg = editbg;
-    if (ixpfield == XPFIELD_DESC) {
-        fg = highlightfg;
-        bg = highlightbg;
-    }
-    print_text(col_desc, labelx,y, label_len, editfg,editbg);
-    print_text_padded(xp->desc->s, valx,y, val_len, xpad, fg,bg);
+    draw_expedit_row(XPFIELD_DESC, x,y, label_width, field_width, field_xpad, xp->desc->s);
     y++;
 
-    fg = editfg;
-    bg = editbg;
-    if (ixpfield == XPFIELD_AMT) {
-        fg = highlightfg;
-        bg = highlightbg;
-    }
-    print_text(col_amt, labelx,y, label_len, editfg,editbg);
     snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    print_text_padded(bufamt, valx,y, val_len, xpad, fg,bg);
+    draw_expedit_row(XPFIELD_AMT, x,y, label_width, field_width, field_xpad, bufamt);
     y++;
 
-    fg = editfg;
-    bg = editbg;
-    if (ixpfield == XPFIELD_CAT) {
-        fg = highlightfg;
-        bg = highlightbg;
-    }
-    print_text(col_cat, labelx,y, label_len, editfg,editbg);
-    print_text_padded("coffee", valx,y, val_len, xpad, fg,bg);
+    draw_expedit_row(XPFIELD_CAT, x,y, label_width, field_width, field_xpad, xp->catname->s);
     y++;
 
-    fg = editfg;
-    bg = editbg;
-    if (ixpfield == XPFIELD_DATE) {
-        fg = highlightfg;
-        bg = highlightbg;
-    }
-    print_text(col_date, labelx,y, label_len, editfg,editbg);
     date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
-    print_text_padded(bufdate, valx,y, val_len, xpad, fg,bg);
+    draw_expedit_row(XPFIELD_DATE, x,y, label_width, field_width, field_xpad, bufdate);
     y++;
 
+}
+static void draw_expedit_row(int ifield, int x, int y, int label_width, int field_width, int field_xpad, char *field_val) {
+    clr_t fg,bg;
+    fg = editfg;
+    bg = editbg;
+    print_text(colxpfield[ifield], x,y, label_width, fg,bg);
+
+    x += label_width;
+    if (ifield == ixpfield) {
+        fg = highlightfg;
+        bg = highlightbg;
+        if (feditxpfield) {
+            fg = editfieldfg;
+            bg = editfieldbg;
+            tb_set_cursor(x+field_xpad,y);
+        }
+    }
+    print_text_padded(field_val, x,y, field_width, field_xpad, fg,bg);
 }
 

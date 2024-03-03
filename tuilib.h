@@ -54,8 +54,8 @@ void print_text_right(char *s, int x, int y, size_t width, clr_t fg, clr_t bg);
 void print_text_padded(char *s, int x, int y, size_t width, int xpad, clr_t fg, clr_t bg);
 void print_text_padded_center(char *s, int x, int y, size_t width, int xpad, clr_t fg, clr_t bg);
 
-panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad);
-panel_t create_panel_center(int width, int height, int leftpad, int rightpad, int toppad, int bottompad);
+panel_t create_panel_frame(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad);
+panel_t create_panel_center(int content_width, int content_height, int leftpad, int rightpad, int toppad, int bottompad);
 void draw_panel(panel_t *p, clr_t fg, clr_t bg);
 void draw_panel_shadow(panel_t *p, clr_t fg, clr_t bg, clr_t shadowfg, clr_t shadowbg);
 

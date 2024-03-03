@@ -185,7 +185,7 @@ void print_text_padded_center(char *s, int x, int y, size_t width, int xpad, clr
     x += xpad;
 }
 
-panel_t create_panel(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad) {
+panel_t create_panel_frame(int x, int y, int width, int height, int leftpad, int rightpad, int toppad, int bottompad) {
     panel_t p;
 
     assert(width > leftpad + rightpad + 1);
@@ -203,21 +203,18 @@ panel_t create_panel(int x, int y, int width, int height, int leftpad, int right
 
     return p;
 }
-panel_t create_panel_center(int width, int height, int leftpad, int rightpad, int toppad, int bottompad) {
+panel_t create_panel_center(int content_width, int content_height, int leftpad, int rightpad, int toppad, int bottompad) {
     panel_t p;
 
-    assert(width > leftpad + rightpad + 1);
-    assert(height > toppad + bottompad + 1);
+    p.frame.width = content_width + leftpad + rightpad + 2;
+    p.frame.height = content_height + toppad + bottompad + 2;
+    p.frame.x = tb_width()/2 - p.frame.width/2;
+    p.frame.y = tb_height()/2 - p.frame.height/2;
 
-    p.frame.x = tb_width()/2 - width/2;
-    p.frame.y = tb_height()/2 - height/2;
-    p.frame.width = width;
-    p.frame.height = height;
-
+    p.content.width = content_width;
+    p.content.height = content_height;
     p.content.x = p.frame.x + 1 + leftpad;
     p.content.y = p.frame.y + 1 + toppad;
-    p.content.width = p.frame.width - 2 - leftpad - rightpad;
-    p.content.height = p.frame.height - 2 - toppad - bottompad;
 
     return p;
 }
