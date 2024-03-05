@@ -35,6 +35,17 @@ typedef struct {
     rect_t content;
 } panel_t;
 
+#define INPUTTEXT_BUFSIZE 64
+typedef struct {
+    char buf[INPUTTEXT_BUFSIZE+1];
+    int icur;
+    int maxchars;
+} inputtext_t;
+
+void init_inputtext(inputtext_t *inputtext, char *text, int maxchars);
+void update_inputtext(inputtext_t *inputtext, struct tb_event *ev);
+void draw_inputtext(inputtext_t *inputtext, int x, int y, int show_cursor, clr_t fg, clr_t bg) ;
+
 rect_t inner_rect(rect_t r);
 rect_t outer_rect(rect_t r);
 

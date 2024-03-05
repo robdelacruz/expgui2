@@ -10,6 +10,7 @@ GTK_LIBS=-lgtk-3 -lgdk-3 -lpangocairo-1.0 -lpango-1.0 -lharfbuzz -latk-1.0 -lcai
 CFLAGS= -std=gnu99 -Wall -Werror
 CFLAGS+= -Wno-unused 
 CFLAGS+= -Wno-deprecated-declarations 
+CFLAGS+= -g
 LIBS=
 
 all: t t2

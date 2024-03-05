@@ -5,98 +5,72 @@
 #include "clib.h"
 #include "db.h"
 
-#define EXPLIST 0
-#define EXPEDIT 1
-
 char *longtext = "This is some text that took me a long time to write.";
 
-// Use for TB_OUTPUT_NORMAL
-clr_t textfg = TB_WHITE;
-clr_t textbg = TB_BLUE;
-clr_t highlightfg = TB_BLACK;
-clr_t highlightbg = TB_CYAN;
-clr_t titlefg = TB_WHITE;
-clr_t titlebg = TB_BLUE;
-clr_t colfg = TB_YELLOW | TB_BOLD;
-clr_t statusfg = TB_YELLOW;
-clr_t statusbg = TB_BLUE;
-clr_t editfg = TB_BLACK;
-clr_t editbg = TB_WHITE;
-clr_t editfieldfg = TB_BLACK;
-clr_t editfieldbg = TB_YELLOW;
-clr_t shadowfg = TB_BLACK;
-clr_t shadowbg = TB_BLACK;
-
-// Use for TB_OUTPUT_256
-#if 0
-clr_t textfg = 15;
-clr_t textbg = 19;
-clr_t highlightfg = 16;
-clr_t highlightbg = 14;
-clr_t titlefg = 16;
-clr_t titlebg = 14;
-clr_t colfg = 11;
-clr_t statusfg = 254;
-clr_t statusbg = 245;
-clr_t editfg = 236;
-clr_t editbg = 252;
-clr_t shadowfg = 235;
-clr_t shadowbg = 235;
-#endif
+clr_t textfg;
+clr_t textbg;
+clr_t highlightfg;
+clr_t highlightbg;
+clr_t titlefg;
+clr_t titlebg;
+clr_t colfg;
+clr_t statusfg;
+clr_t statusbg;
+clr_t editfg;
+clr_t editbg;
+clr_t editfieldfg;
+clr_t editfieldbg;
+clr_t shadowfg;
+clr_t shadowbg;
 
 uint statusx=0, statusy=23;
-array_t *xps=0;
-int ixps=0;
-int iscrollxps=0;
 
-panel_t explist;
-panel_t expedit;
-int active_panel = EXPLIST;
+#define EXPENSE_COL_START 0
+#define EXPENSE_COL_DESC 0
+#define EXPENSE_COL_AMT 1
+#define EXPENSE_COL_CAT 2
+#define EXPENSE_COL_DATE 3
+#define EXPENSE_COL_COUNT 4
+char *expense_col_label[EXPENSE_COL_COUNT];
+int expense_col_maxwidth[EXPENSE_COL_COUNT];
+int expense_field_maxchars[EXPENSE_COL_COUNT];
 
-#define XPFIELD_START 0
-#define XPFIELD_DESC 0
-#define XPFIELD_AMT 1
-#define XPFIELD_CAT 2
-#define XPFIELD_DATE 3
-#define XPFIELD_LEN 4
+panel_t listxp;
+array_t *listxp_xps=0;
+int listxp_ixps=0;
+int listxp_scrollpos=0;
 
-int ixpfield = XPFIELD_DESC;
-int feditxpfield = 0;
-int icurxpfield = 0;
+panel_t editxp;
+int editxp_show;
+int editxp_selected_row;
+int editxp_is_edit_row;
+inputtext_t editxp_input_fields[EXPENSE_COL_COUNT];
 
-// Amount, Category, Date are fixed width fields
-// Description field width will consume the remaining horizontal space.
-int field_amt_size = 9;
-int field_cat_size = 10;
-int field_date_size = 5;
-
-char *colxpfield[] = {
-    "Description",
-    "Amount",
-    "Category",
-    "Date"
-};
-
+static void set_output_mode(int mode);
+static void init_state_vars();
 static void update(struct tb_event *ev);
+static void update_listxp(struct tb_event *ev);
+static void update_editxp(struct tb_event *ev);
 static void draw();
 static void draw_shell();
-static void draw_explist();
-static void draw_expedit();
+static void draw_expense_list();
+static void draw_expense_edit_panel();
 
 void tui_start(sqlite3 *db, char *dbfile) {
     struct tb_event ev;
 
     tb_init();
     tb_set_input_mode(TB_INPUT_ESC);
-//    tb_set_output_mode(TB_OUTPUT_256);
-    tb_set_output_mode(TB_OUTPUT_NORMAL);
+//    set_output_mode(TB_OUTPUT_256);
+    set_output_mode(TB_OUTPUT_NORMAL);
     tb_set_clear_attrs(textfg, textbg);
+
+    init_state_vars();
 
     statusx = 0;
     statusy = tb_height()-1;
 
-    xps = array_new(0);
-    db_select_exp(db, xps);
+    db_select_exp(db, listxp_xps);
 
     tb_clear();
     print_text(longtext, statusx,statusy, tb_width(), TB_DEFAULT,TB_DEFAULT);
@@ -117,6 +91,71 @@ void tui_start(sqlite3 *db, char *dbfile) {
     tb_shutdown();
 }
 
+static void set_output_mode(int mode) {
+    if (mode == TB_OUTPUT_256) {
+        textfg = 15;
+        textbg = 19;
+        highlightfg = 16;
+        highlightbg = 14;
+        titlefg = 16;
+        titlebg = 14;
+        colfg = 11;
+        statusfg = 254;
+        statusbg = 245;
+        editfg = 236;
+        editbg = 252;
+        editfieldfg = 236;
+        editfieldbg = 14;
+        shadowfg = 235;
+        shadowbg = 235;
+    } else {
+        textfg = TB_WHITE;
+        textbg = TB_BLUE;
+        highlightfg = TB_BLACK;
+        highlightbg = TB_CYAN;
+        titlefg = TB_WHITE;
+        titlebg = TB_BLUE;
+        colfg = TB_YELLOW | TB_BOLD;
+        statusfg = TB_YELLOW;
+        statusbg = TB_BLUE;
+        editfg = TB_BLACK;
+        editbg = TB_WHITE;
+        editfieldfg = TB_BLACK;
+        editfieldbg = TB_YELLOW;
+        shadowfg = TB_BLACK;
+        shadowbg = TB_BLACK;
+    }
+    tb_set_output_mode(mode);
+}
+
+static void init_state_vars() {
+    expense_col_label[EXPENSE_COL_DESC] = "Description";
+    expense_col_label[EXPENSE_COL_AMT]  = "Amount";
+    expense_col_label[EXPENSE_COL_CAT]  = "Category";
+    expense_col_label[EXPENSE_COL_DATE] = "Date";
+
+    expense_col_maxwidth[EXPENSE_COL_DESC] = 0;
+    expense_col_maxwidth[EXPENSE_COL_AMT]  = 9;
+    expense_col_maxwidth[EXPENSE_COL_CAT]  = 10;
+    expense_col_maxwidth[EXPENSE_COL_DATE] = 5;
+
+    expense_field_maxchars[EXPENSE_COL_DESC] = 25;
+    expense_field_maxchars[EXPENSE_COL_AMT] = 9;
+    expense_field_maxchars[EXPENSE_COL_CAT] = 10;
+    expense_field_maxchars[EXPENSE_COL_DATE] = 10; // 2024-03-01
+
+    listxp_xps = array_new(0);
+    listxp_ixps = 0;
+    listxp_scrollpos = 0;
+
+    editxp_show = 0;
+    editxp_selected_row = EXPENSE_COL_DESC;
+    editxp_is_edit_row = 0;
+
+    for (int i=EXPENSE_COL_START; i < EXPENSE_COL_COUNT; i++)
+        init_inputtext(&editxp_input_fields[i], "", expense_field_maxchars[i]);
+}
+
 static void printf_status(const char *fmt, ...) {
     char buf[4096];
 
@@ -127,92 +166,134 @@ static void printf_status(const char *fmt, ...) {
     va_end(vl);
 }
 
+
 static void update(struct tb_event *ev) {
-    if (active_panel == EXPLIST) {
-        if (xps->len == 0)
-            return;
+    if (editxp_show) {
+        update_editxp(ev);
+        return;
+    }
 
-        if (ev->ch == 'e' || ev->key == TB_KEY_ENTER) {
-            active_panel = EXPEDIT;
-            return;
+    update_listxp(ev);
+}
+static void update_listxp(struct tb_event *ev) {
+    if (listxp_xps->len == 0)
+        return;
+
+    // Enter to edit expense row
+    if (ev->key == TB_KEY_ENTER) {
+        exp_t *xp;
+        inputtext_t *input;
+        int maxchars;
+        char bufdate[ISO_DATE_LEN+1];
+        char bufamt[12];
+
+        assert(listxp_xps->len > 0);
+        assert(listxp_ixps >= 0 && listxp_ixps < listxp_xps->len);
+        xp = listxp_xps->items[listxp_ixps];
+
+        input = &editxp_input_fields[EXPENSE_COL_DESC];
+        maxchars = expense_field_maxchars[EXPENSE_COL_DESC];
+        init_inputtext(input, xp->desc->s, maxchars);
+
+        input = &editxp_input_fields[EXPENSE_COL_AMT];
+        maxchars = expense_field_maxchars[EXPENSE_COL_AMT];
+        snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
+        init_inputtext(input, bufamt, maxchars);
+
+        input = &editxp_input_fields[EXPENSE_COL_CAT];
+        maxchars = expense_field_maxchars[EXPENSE_COL_CAT];
+        init_inputtext(input, xp->catname->s, maxchars);
+
+        input = &editxp_input_fields[EXPENSE_COL_DATE];
+        maxchars = expense_field_maxchars[EXPENSE_COL_DATE];
+        date_to_iso(xp->date, bufdate, sizeof(bufdate));
+        init_inputtext(input, bufdate, maxchars);
+
+        editxp_show = 1;
+        return;
+    }
+
+    // Navigate expense list Up/Down/PgUp/PgDn
+    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
+        listxp_ixps--;
+    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
+        listxp_ixps++;
+    if (ev->key == TB_KEY_PGUP || ev->key == TB_KEY_CTRL_U)
+        listxp_ixps -= listxp.content.height/2;
+    if (ev->key == TB_KEY_PGDN || ev->key == TB_KEY_CTRL_D)
+        listxp_ixps += listxp.content.height/2;
+
+    if (listxp_ixps < 0)
+        listxp_ixps = 0;
+    if (listxp_ixps > listxp_xps->len-1)
+        listxp_ixps = listxp_xps->len-1;
+
+    if (listxp_ixps < listxp_scrollpos)
+        listxp_scrollpos = listxp_ixps;
+    if (listxp_ixps > listxp_scrollpos + listxp.content.height-1)
+        listxp_scrollpos = listxp_ixps - (listxp.content.height-1);
+
+    if (listxp_scrollpos < 0)
+        listxp_scrollpos = 0;
+    if (listxp_scrollpos > listxp_xps->len-1)
+        listxp_scrollpos = listxp_xps->len-1;
+
+    assert(listxp_ixps >= 0 && listxp_ixps < listxp_xps->len);
+}
+static void update_editxp(struct tb_event *ev) {
+    // Editing field
+    if (editxp_is_edit_row) {
+        // Enter/ESC to cancel row edit
+        if (ev->key == TB_KEY_ESC) {
+            editxp_is_edit_row = 0;
+            tb_set_cursor(0,0);
+            tb_hide_cursor();
+        } 
+        if (ev->key == TB_KEY_ENTER) {
+            editxp_is_edit_row = 0;
+            tb_set_cursor(0,0);
+            tb_hide_cursor();
         }
 
-        if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
-            ixps--;
-        if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
-            ixps++;
-        if (ev->key == TB_KEY_PGUP || ev->key == TB_KEY_CTRL_U)
-            ixps -= explist.content.height/2;
-        if (ev->key == TB_KEY_PGDN || ev->key == TB_KEY_CTRL_D)
-            ixps += explist.content.height/2;
+        assert(editxp_selected_row >= EXPENSE_COL_START && editxp_selected_row < EXPENSE_COL_COUNT);
+        update_inputtext(&editxp_input_fields[editxp_selected_row], ev);
+        return;
+    }
 
-        if (ixps < 0)
-            ixps = 0;
-        if (ixps > xps->len-1)
-            ixps = xps->len-1;
+    // Up/Down to select row
+    // ESC to close panel
+    if (ev->key == TB_KEY_ESC) {
+        editxp_show = 0;
+        editxp_selected_row = EXPENSE_COL_START;
+        editxp_is_edit_row = 0;
+        return;
+    }
 
-        if (ixps < iscrollxps)
-            iscrollxps = ixps;
-        if (ixps > iscrollxps + explist.content.height-1)
-            iscrollxps = ixps - (explist.content.height-1);
+    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
+        editxp_selected_row--;
+    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
+        editxp_selected_row++;
 
-        if (iscrollxps < 0)
-            iscrollxps = 0;
-        if (iscrollxps > xps->len-1)
-            iscrollxps = xps->len-1;
+    if (editxp_selected_row < EXPENSE_COL_START)
+        editxp_selected_row = EXPENSE_COL_START;
+    if (editxp_selected_row >= EXPENSE_COL_COUNT)
+        editxp_selected_row = EXPENSE_COL_COUNT-1;
 
-        assert(ixps >= 0 && ixps < xps->len);
-    } else if (active_panel == EXPEDIT) {
-        if (!feditxpfield) {
-            // Select field to edit
-            if (ev->key == TB_KEY_ESC) {
-                active_panel = EXPLIST;
-                ixpfield = XPFIELD_START;
-                return;
-            }
-
-            if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
-                ixpfield--;
-            if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
-                ixpfield++;
-
-            if (ixpfield < XPFIELD_START)
-                ixpfield = XPFIELD_START;
-            if (ixpfield >= XPFIELD_LEN)
-                ixpfield = XPFIELD_LEN-1;
-
-            if (ev->key == TB_KEY_ENTER) {
-                feditxpfield = 1;
-                icurxpfield = 0;
-            }
-            return;
-        }
-
-        if (feditxpfield) {
-            // Editing field
-            if (ev->key == TB_KEY_ESC) {
-                feditxpfield = 0;
-                tb_set_cursor(0,0);
-                tb_hide_cursor();
-            } 
-            if (ev->key == TB_KEY_ENTER) {
-                feditxpfield = 0;
-                tb_set_cursor(0,0);
-                tb_hide_cursor();
-            }
-        }
+    // Enter to edit field
+    if (ev->key == TB_KEY_ENTER) {
+        editxp_is_edit_row = 1;
     }
 }
 
 static void draw() {
     tb_clear();
-    printf_status("ixps: %d, iscrollxps: %d", ixps, iscrollxps);
+    printf_status("listxp_ixps: %d, listxp_scrollpos: %d", listxp_ixps, listxp_scrollpos);
 
     draw_shell();
-    draw_explist();
+    draw_expense_list();
 
-    if (active_panel == EXPEDIT) {
-        draw_expedit();
+    if (editxp_show) {
+        draw_expense_edit_panel();
     }
 
     tb_present();
@@ -222,7 +303,7 @@ static void draw_shell() {
     print_text(" Expense Buddy Console", 0,0, tb_width(), titlefg | TB_BOLD, titlebg);
 }
 
-static void draw_explist() {
+static void draw_expense_list() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
@@ -230,65 +311,49 @@ static void draw_explist() {
     clr_t fg, bg;
     int x,y;
 
-    int num_fields;
     int xpad;
-    int field_desc_size;
-    int ifield;
+    int desc_maxwidth;
 
-    explist = create_panel_frame(0,1, tb_width(), tb_height()-2, 0,0, 1,1);
-    draw_panel(&explist, textfg,textbg);
-
-    // 4 fields: Description, Amount, Category, Date
-    num_fields = 4;
+    listxp = create_panel_frame(0,1, tb_width(), tb_height()-2, 0,0, 1,1);
+    draw_panel(&listxp, textfg,textbg);
 
     // Add padding of one space to left and right of each field
     xpad = 1;
 
-    // Description
-    field_desc_size = explist.content.width;
-    field_desc_size -= field_amt_size + field_cat_size + field_date_size;
-    field_desc_size -= num_fields-1;              // space for column separator
-    field_desc_size -= (num_fields)*xpad*2;       // space for padding on left/right side.
+    // Amount, Category, Date are fixed width fields
+    // Description field width will consume the remaining horizontal space.
+    desc_maxwidth = listxp.content.width;
+    desc_maxwidth -= expense_col_maxwidth[EXPENSE_COL_AMT];
+    desc_maxwidth -= expense_col_maxwidth[EXPENSE_COL_CAT];
+    desc_maxwidth -= expense_col_maxwidth[EXPENSE_COL_DATE];
+    desc_maxwidth -= EXPENSE_COL_COUNT-1;        // space for column separator
+    desc_maxwidth -= (EXPENSE_COL_COUNT)*xpad*2; // space for padding on left/right side.
+    expense_col_maxwidth[EXPENSE_COL_DESC] = desc_maxwidth;
 
-    // Column headings
-    x = explist.content.x;
-    y = explist.frame.y+1;
+    // Print column headings
+    x = listxp.content.x;
+    y = listxp.frame.y+1;
     fg = textfg;
     bg = textbg;
+    for (int i=EXPENSE_COL_START; i < EXPENSE_COL_COUNT; i++) {
+        print_text_padded_center(expense_col_label[i], x,y, expense_col_maxwidth[i], xpad, colfg,bg);
+        x += xpad + expense_col_maxwidth[i] + xpad;
+        if (i != EXPENSE_COL_COUNT-1) {
+            draw_ch(ASC_VERTLINE, x,y, fg,bg);
+            draw_ch_vert(ASC_VERTLINE, x, listxp.content.y, listxp.content.height, fg,bg);
+            x++;
+        }
+    }
 
-    ifield = XPFIELD_DESC;
-    print_text_padded_center(colxpfield[ifield], x,y, field_desc_size, xpad, colfg,bg);
-    x += xpad + field_desc_size + xpad;
-    draw_ch(ASC_VERTLINE, x,y, fg,bg);
-    draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
-    x++;
-
-    ifield = XPFIELD_AMT;
-    print_text_padded_center(colxpfield[ifield], x,y, field_amt_size, xpad, colfg,bg);
-    x += xpad + field_amt_size + xpad;
-    draw_ch(ASC_VERTLINE, x,y, fg,bg);
-    draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
-    x++;
-
-    ifield = XPFIELD_CAT;
-    print_text_padded_center(colxpfield[ifield], x,y, field_cat_size, xpad, colfg,bg);
-    x += xpad + field_cat_size + xpad;
-    draw_ch(ASC_VERTLINE, x,y, fg,bg);
-    draw_ch_vert(ASC_VERTLINE, x, explist.content.y, explist.content.height, fg,bg);
-    x++;
-
-    ifield = XPFIELD_DATE;
-    print_text_padded_center(colxpfield[ifield], x,y, field_date_size, xpad, colfg,bg);
-
-    x = explist.content.x;
-    y = explist.content.y;
+    x = listxp.content.x;
+    y = listxp.content.y;
 
     int row = 0;
-    for (int i=iscrollxps; i < xps->len; i++) {
-        if (row > explist.content.height-1)
+    for (int i=listxp_scrollpos; i < listxp_xps->len; i++) {
+        if (row > listxp.content.height-1)
             break;
-        xp = xps->items[i];
-        if (i == ixps) {
+        xp = listxp_xps->items[i];
+        if (i == listxp_ixps) {
             fg = highlightfg;
             bg = highlightbg;
         } else {
@@ -296,112 +361,115 @@ static void draw_explist() {
             bg = textbg;
         }
 
-        // Row values
-        print_text_padded(xp->desc->s, x,y, field_desc_size, xpad, fg,bg);
-        x += xpad + field_desc_size + xpad;
-        draw_ch(ASC_VERTLINE, x,y, fg,bg);
-        x++;
+        // Print one row of columns.
+        for (int icol=EXPENSE_COL_START; icol < EXPENSE_COL_COUNT; icol++) {
+            char *v;
+            if (icol == EXPENSE_COL_DESC) {
+                v = xp->desc->s;
+            } else if (icol == EXPENSE_COL_AMT) {
+                snprintf(bufamt, sizeof(bufamt), "%9.2f", xp->amt);
+                v = bufamt;
+            } else if (icol == EXPENSE_COL_CAT) {
+                v = xp->catname->s;
+            } else if (icol == EXPENSE_COL_DATE) {
+                date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
+                v = bufdate;
+            }
+            print_text_padded(v, x,y, expense_col_maxwidth[icol], xpad, fg,bg);
+            x += xpad + expense_col_maxwidth[icol] + xpad;
 
-        snprintf(bufamt, sizeof(bufamt), "%9.2f", xp->amt);
-        print_text_padded(bufamt, x,y, field_amt_size, xpad, fg,bg);
-        x += xpad + field_amt_size + xpad;
-        draw_ch(ASC_VERTLINE, x,y, fg,bg);
-        x++;
-
-        //x = draw_explist_field(x,y, xp->catname->s, field_cat_size, xpad, fg,bg);
-        print_text_padded("LongCatName12345", x,y, field_cat_size, xpad, fg,bg);
-        x += xpad + field_cat_size + xpad;
-        draw_ch(ASC_VERTLINE, x,y, fg,bg);
-        x++;
-
-        date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
-        print_text_padded(bufdate, x,y, field_date_size, xpad, fg,bg);
-        x += xpad + field_date_size + xpad;
-
-        assert(x == explist.content.x + explist.content.width);
+            if (icol != EXPENSE_COL_COUNT-1) {
+                draw_ch(ASC_VERTLINE, x,y, fg,bg);
+                x++;
+            }
+        }
+        assert(x == listxp.content.x + listxp.content.width);
 
         y++;
-        x = explist.content.x;
+        x = listxp.content.x;
         row++;
     }
 
     // Status line
-    x = explist.content.x;
-    y = explist.content.y + explist.content.height;
-    draw_ch_horz(" ", x,y, explist.content.width, statusfg,statusbg);
+    x = listxp.content.x;
+    y = listxp.content.y + listxp.content.height;
+    draw_ch_horz(" ", x,y, listxp.content.width, statusfg,statusbg);
 
-    if (xps->len > 0) {
-        xp = xps->items[ixps];
+    if (listxp_xps->len > 0) {
+        xp = listxp_xps->items[listxp_ixps];
         snprintf(buf, sizeof(buf), "%.*s %.2f", 50, xp->desc->s, xp->amt);
-        print_text(buf, x,y, explist.content.width, statusfg,statusbg);
+        print_text(buf, x,y, listxp.content.width, statusfg,statusbg);
 
-        snprintf(buf, sizeof(buf), "Expense %d/%ld", ixps+1, xps->len);
-        x = explist.content.x + explist.content.width - strlen(buf);
+        snprintf(buf, sizeof(buf), "Expense %d/%ld", listxp_ixps+1, listxp_xps->len);
+        x = listxp.content.x + listxp.content.width - strlen(buf);
         tb_print(x,y, statusfg,statusbg, buf);
     }
 }
 
-static void draw_expedit_row(int ifield, int x, int y, int label_width, int field_width, int field_xpad, char *field_val);
+static void draw_expense_input(int icol, int x, int y, int label_width);
 
-static void draw_expedit() {
+static void draw_expense_edit_panel() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
     char bufprompt[1024];
     int x,y;
-    int field_xpad = 1;
     int panel_leftpad = 1;
     int panel_rightpad = 1;
     int panel_toppad = 2;
     int panel_bottompad = 1;
     int panel_height;
-    size_t label_width = strlen(colxpfield[XPFIELD_DESC])+1;
-    size_t field_width = 30;
-    int ifield;
+    size_t label_width = strlen(expense_col_label[EXPENSE_COL_DESC])+1;
+    size_t field_width = expense_field_maxchars[EXPENSE_COL_DESC];
     clr_t fg,bg;
 
-    assert(xps->len > 0);
-    assert(ixps < xps->len-1);
-    xp = xps->items[ixps];
+    assert(listxp_xps->len > 0);
+    assert(listxp_ixps < listxp_xps->len);
+    xp = listxp_xps->items[listxp_ixps];
 
-    panel_height = XPFIELD_LEN;
-    expedit = create_panel_center(label_width + field_width + field_xpad*2, panel_height, panel_leftpad, panel_rightpad, panel_toppad, panel_bottompad);
-    draw_panel_shadow(&expedit, editfg,editbg, shadowfg,shadowbg);
-    print_text_center("Edit Expense", expedit.content.x,expedit.frame.y+1, expedit.content.width, editfg | TB_BOLD,editbg);
+    panel_height = EXPENSE_COL_COUNT;
+    editxp = create_panel_center(label_width + field_width, panel_height, panel_leftpad, panel_rightpad, panel_toppad, panel_bottompad);
+    draw_panel_shadow(&editxp, editfg,editbg, shadowfg,shadowbg);
+    print_text_center("Edit Expense", editxp.content.x,editxp.frame.y+1, editxp.content.width, editfg | TB_BOLD,editbg);
 
-    x = expedit.content.x;
-    y = expedit.content.y;
-    draw_expedit_row(XPFIELD_DESC, x,y, label_width, field_width, field_xpad, xp->desc->s);
+    x = editxp.content.x;
+    y = editxp.content.y;
+    draw_expense_input(EXPENSE_COL_DESC, x,y, label_width);
     y++;
 
     snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    draw_expedit_row(XPFIELD_AMT, x,y, label_width, field_width, field_xpad, bufamt);
+    draw_expense_input(EXPENSE_COL_AMT, x,y, label_width);
     y++;
 
-    draw_expedit_row(XPFIELD_CAT, x,y, label_width, field_width, field_xpad, xp->catname->s);
+    draw_expense_input(EXPENSE_COL_CAT, x,y, label_width);
     y++;
 
-    date_strftime(xp->date, "%m-%d", bufdate, sizeof(bufdate));
-    draw_expedit_row(XPFIELD_DATE, x,y, label_width, field_width, field_xpad, bufdate);
+    date_to_iso(xp->date, bufdate, sizeof(bufdate));
+    draw_expense_input(EXPENSE_COL_DATE, x,y, label_width);
     y++;
 
 }
-static void draw_expedit_row(int ifield, int x, int y, int label_width, int field_width, int field_xpad, char *field_val) {
+static void draw_expense_input(int icol, int x, int y, int label_width) {
     clr_t fg,bg;
+    inputtext_t *inputtext;
+
+    assert(icol >= EXPENSE_COL_START || icol < EXPENSE_COL_COUNT);
+    inputtext = &editxp_input_fields[icol];
+
     fg = editfg;
     bg = editbg;
-    print_text(colxpfield[ifield], x,y, label_width, fg,bg);
+    print_text(expense_col_label[icol], x,y, label_width, fg,bg);
 
     x += label_width;
-    if (ifield == ixpfield) {
+    if (icol == editxp_selected_row) {
         fg = highlightfg;
         bg = highlightbg;
-        if (feditxpfield) {
-            fg = editfieldfg;
-            bg = editfieldbg;
-            tb_set_cursor(x+field_xpad,y);
+        if (editxp_is_edit_row) {
+            draw_inputtext(inputtext, x,y, 1, editfieldfg,editfieldbg);
+            return;
         }
     }
-    print_text_padded(field_val, x,y, field_width, field_xpad, fg,bg);
+
+    draw_inputtext(inputtext, x,y, 0, fg,bg);
 }
 
