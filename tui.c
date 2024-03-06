@@ -51,8 +51,8 @@ static void update_listxp(struct tb_event *ev);
 static void update_editxp(struct tb_event *ev);
 static void draw();
 static void draw_shell();
-static void draw_expense_list();
-static void draw_expense_edit_panel();
+static void draw_listxp();
+static void draw_editxp();
 
 void tui_start(sqlite3 *db, char *dbfile) {
     struct tb_event ev;
@@ -277,10 +277,10 @@ static void draw() {
     printf_status("listxp_ixps: %d, listxp_scrollpos: %d", listxp_ixps, listxp_scrollpos);
 
     draw_shell();
-    draw_expense_list();
+    draw_listxp();
 
     if (editxp_show) {
-        draw_expense_edit_panel();
+        draw_editxp();
     }
 
     tb_present();
@@ -290,7 +290,7 @@ static void draw_shell() {
     print_text(" Expense Buddy Console", 0,0, tb_width(), titlefg | TB_BOLD, titlebg);
 }
 
-static void draw_expense_list() {
+static void draw_listxp() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
@@ -394,9 +394,9 @@ static void draw_expense_list() {
     }
 }
 
-static void draw_expense_input(int icol, int x, int y, int label_width);
+static void draw_editxp_row(int icol, int x, int y, int label_width);
 
-static void draw_expense_edit_panel() {
+static void draw_editxp() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
@@ -422,22 +422,22 @@ static void draw_expense_edit_panel() {
 
     x = editxp.content.x;
     y = editxp.content.y;
-    draw_expense_input(XP_COL_DESC, x,y, label_width);
+    draw_editxp_row(XP_COL_DESC, x,y, label_width);
     y++;
 
     snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    draw_expense_input(XP_COL_AMT, x,y, label_width);
+    draw_editxp_row(XP_COL_AMT, x,y, label_width);
     y++;
 
-    draw_expense_input(XP_COL_CAT, x,y, label_width);
+    draw_editxp_row(XP_COL_CAT, x,y, label_width);
     y++;
 
     date_to_iso(xp->date, bufdate, sizeof(bufdate));
-    draw_expense_input(XP_COL_DATE, x,y, label_width);
+    draw_editxp_row(XP_COL_DATE, x,y, label_width);
     y++;
 
 }
-static void draw_expense_input(int icol, int x, int y, int label_width) {
+static void draw_editxp_row(int icol, int x, int y, int label_width) {
     clr_t fg,bg;
     entry_t *e;
 
