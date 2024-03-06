@@ -241,22 +241,28 @@ static void update_listxp(struct tb_event *ev) {
     assert(listxp_ixps >= 0 && listxp_ixps < listxp_xps->len);
 }
 static void update_editxp(struct tb_event *ev) {
+    inputtext_t *input;
+
     // Editing field
     if (editxp_is_edit_row) {
+        assert(editxp_selected_row >= EXPENSE_COL_START && editxp_selected_row < EXPENSE_COL_COUNT);
+        input = &editxp_input_fields[editxp_selected_row];
+
         // Enter/ESC to cancel row edit
         if (ev->key == TB_KEY_ESC) {
             editxp_is_edit_row = 0;
             tb_set_cursor(0,0);
             tb_hide_cursor();
+            input->icur = 0;
         } 
         if (ev->key == TB_KEY_ENTER) {
             editxp_is_edit_row = 0;
             tb_set_cursor(0,0);
             tb_hide_cursor();
+            input->icur = 0;
         }
 
-        assert(editxp_selected_row >= EXPENSE_COL_START && editxp_selected_row < EXPENSE_COL_COUNT);
-        update_inputtext(&editxp_input_fields[editxp_selected_row], ev);
+        update_inputtext(input, ev);
         return;
     }
 

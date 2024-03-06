@@ -42,10 +42,6 @@ typedef struct {
     int maxchars;
 } inputtext_t;
 
-void init_inputtext(inputtext_t *inputtext, char *text, int maxchars);
-void update_inputtext(inputtext_t *inputtext, struct tb_event *ev);
-void draw_inputtext(inputtext_t *inputtext, int x, int y, int show_cursor, clr_t fg, clr_t bg) ;
-
 rect_t inner_rect(rect_t r);
 rect_t outer_rect(rect_t r);
 
@@ -69,4 +65,8 @@ panel_t create_panel_frame(int x, int y, int width, int height, int leftpad, int
 panel_t create_panel_center(int content_width, int content_height, int leftpad, int rightpad, int toppad, int bottompad);
 void draw_panel(panel_t *p, clr_t fg, clr_t bg);
 void draw_panel_shadow(panel_t *p, clr_t fg, clr_t bg, clr_t shadowfg, clr_t shadowbg);
+
+void init_inputtext(inputtext_t *inputtext, char *text, int maxchars);
+void update_inputtext(inputtext_t *inputtext, struct tb_event *ev);
+void draw_inputtext(inputtext_t *inputtext, int x, int y, int show_cursor, clr_t fg, clr_t bg) ;
 
