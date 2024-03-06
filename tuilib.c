@@ -235,14 +235,19 @@ void draw_panel_shadow(panel_t *p, clr_t fg, clr_t bg, clr_t shadowfg, clr_t sha
     draw_ch_horz(ASC_BLOCK_LOW, x,y, p->frame.width, shadowfg,shadowbg);
 }
 
-void init_inputtext(inputtext_t *inputtext, char *text, int maxchars) {
-    if (maxchars > INPUTTEXT_BUFSIZE)
-        maxchars = INPUTTEXT_BUFSIZE;
+void init_entry(entry_t *e, char *text, int maxchars) {
+    if (maxchars > ENTRY_BUFSIZE)
+        maxchars = ENTRY_BUFSIZE;
 
-    strncpy(inputtext->buf, text, maxchars);
-    inputtext->buf[maxchars+1] = 0;
-    inputtext->icur = 0;
-    inputtext->maxchars = maxchars;
+    strncpy(e->buf, text, maxchars);
+    e->buf[maxchars+1] = 0;
+    e->icur = 0;
+    e->maxchars = maxchars;
+}
+void entry_set_text(entry_t *e, char *text) {
+    strncpy(e->buf, text, e->maxchars);
+    e->buf[e->maxchars+1] = 0;
+    e->icur = 0;
 }
 
 static void del_char(char *s, size_t s_len, int ipos) {
@@ -275,43 +280,43 @@ static int insert_char(char *s, size_t s_len, size_t maxchars, int ipos, char c)
     return 1;
 }
 
-void update_inputtext(inputtext_t *inputtext, struct tb_event *ev) {
-    size_t buf_len = strlen(inputtext->buf);
+void update_entry(entry_t *e, struct tb_event *ev) {
+    size_t buf_len = strlen(e->buf);
 
     if (ev->key == TB_KEY_ARROW_LEFT)
-        inputtext->icur--;
+        e->icur--;
     if (ev->key == TB_KEY_ARROW_RIGHT)
-        inputtext->icur++;
+        e->icur++;
 
     if (ev->key == TB_KEY_BACKSPACE || ev->key == TB_KEY_BACKSPACE2) {
-        if (inputtext->icur > 0) {
-            inputtext->icur--;
-            del_char(inputtext->buf, buf_len, inputtext->icur);
+        if (e->icur > 0) {
+            e->icur--;
+            del_char(e->buf, buf_len, e->icur);
         }
     }
     if (ev->key == TB_KEY_DELETE) {
-        del_char(inputtext->buf, buf_len, inputtext->icur);
+        del_char(e->buf, buf_len, e->icur);
     }
 
-    if (inputtext->icur < 0)
-        inputtext->icur = 0;
-    if (inputtext->icur > buf_len)
-        inputtext->icur = buf_len;
+    if (e->icur < 0)
+        e->icur = 0;
+    if (e->icur > buf_len)
+        e->icur = buf_len;
 
     // ascii printable char 32(space) - 126(~)
     if (ev->ch >= 32 && ev->ch <= 126) {
         char ch = (char) ev->ch;
-        if (insert_char(inputtext->buf, buf_len, inputtext->maxchars, inputtext->icur, ch))
-            inputtext->icur++;
+        if (insert_char(e->buf, buf_len, e->maxchars, e->icur, ch))
+            e->icur++;
     }
 
-    if (inputtext->icur > inputtext->maxchars-1)
-        inputtext->icur = inputtext->maxchars-1;
+    if (e->icur > e->maxchars-1)
+        e->icur = e->maxchars-1;
 }
 
-void draw_inputtext(inputtext_t *inputtext, int x, int y, int show_cursor, clr_t fg, clr_t bg) {
-    print_text(inputtext->buf, x,y, inputtext->maxchars, fg,bg);
+void draw_entry(entry_t *e, int x, int y, int show_cursor, clr_t fg, clr_t bg) {
+    print_text(e->buf, x,y, e->maxchars, fg,bg);
     if (show_cursor)
-        tb_set_cursor(x+inputtext->icur, y);
+        tb_set_cursor(x+e->icur, y);
 }
 

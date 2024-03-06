@@ -35,12 +35,12 @@ typedef struct {
     rect_t content;
 } panel_t;
 
-#define INPUTTEXT_BUFSIZE 64
+#define ENTRY_BUFSIZE 64
 typedef struct {
-    char buf[INPUTTEXT_BUFSIZE+1];
+    char buf[ENTRY_BUFSIZE+1];
     int icur;
     int maxchars;
-} inputtext_t;
+} entry_t;
 
 rect_t inner_rect(rect_t r);
 rect_t outer_rect(rect_t r);
@@ -66,7 +66,8 @@ panel_t create_panel_center(int content_width, int content_height, int leftpad, 
 void draw_panel(panel_t *p, clr_t fg, clr_t bg);
 void draw_panel_shadow(panel_t *p, clr_t fg, clr_t bg, clr_t shadowfg, clr_t shadowbg);
 
-void init_inputtext(inputtext_t *inputtext, char *text, int maxchars);
-void update_inputtext(inputtext_t *inputtext, struct tb_event *ev);
-void draw_inputtext(inputtext_t *inputtext, int x, int y, int show_cursor, clr_t fg, clr_t bg) ;
+void init_entry(entry_t *e, char *text, int maxchars);
+void entry_set_text(entry_t *e, char *text);
+void update_entry(entry_t *e, struct tb_event *ev);
+void draw_entry(entry_t *e, int x, int y, int show_cursor, clr_t fg, clr_t bg) ;
 
