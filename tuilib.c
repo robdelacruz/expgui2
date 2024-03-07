@@ -152,7 +152,7 @@ void print_text_center(char *s, int x, int y, size_t width, clr_t fg, clr_t bg) 
         return;
     }
 
-    draw_ch_horz(" ", x,y, width, fg,bg);
+    //draw_ch_horz(" ", x,y, width, fg,bg);
     x += width/2 - s_len/2;
     tb_print(x,y, fg,bg, s);
 }

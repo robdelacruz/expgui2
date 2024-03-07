@@ -22,6 +22,8 @@ clr_t editfieldfg;
 clr_t editfieldbg;
 clr_t shadowfg;
 clr_t shadowbg;
+clr_t btnfg;
+clr_t btnbg;
 
 uint statusx=0, statusy=23;
 
@@ -46,6 +48,8 @@ int editxp_icol=XP_COL_DESC;
 int editxp_is_edit_entry=0;
 entry_t editxp_entries[XP_COL_COUNT];
 
+sqlite3 *_db;
+
 static void set_output_mode(int mode);
 static void update(struct tb_event *ev);
 static void update_listxp(struct tb_event *ev);
@@ -64,6 +68,7 @@ void tui_start(sqlite3 *db, char *dbfile) {
     set_output_mode(TB_OUTPUT_NORMAL);
     tb_set_clear_attrs(textfg, textbg);
 
+    _db = db;
     listxp_xps = array_new(0);
     editxp_xp = exp_new();
     for (int i=XP_COL_START; i < XP_COL_COUNT; i++)
@@ -112,6 +117,8 @@ static void set_output_mode(int mode) {
         editfieldbg = 14;
         shadowfg = 235;
         shadowbg = 235;
+        btnfg = editfg;
+        btnbg = editbg;
     } else {
         textfg = TB_WHITE;
         textbg = TB_BLUE;
@@ -128,6 +135,8 @@ static void set_output_mode(int mode) {
         editfieldbg = TB_YELLOW;
         shadowfg = TB_BLACK;
         shadowbg = TB_BLACK;
+        btnfg = TB_BLACK;
+        btnbg = TB_YELLOW;
     }
     tb_set_output_mode(mode);
 }
@@ -253,7 +262,7 @@ static void editxp_cancel_edit() {
     tb_hide_cursor();
 }
 
-// Copy editxp entry to the expense.
+// Update expense with entry field contents.
 static void editxp_enter_edit() {
     entry_t *e = editxp_selected_entry();
 
@@ -267,8 +276,6 @@ static void editxp_enter_edit() {
     } else if (editxp_icol == XP_COL_DATE) {
         date_assign_iso(editxp_xp->date, e->buf);
     }
-
-    exp_dup(listxp_selected_expense(), editxp_xp);
 
     editxp_is_edit_entry = 0;
     tb_hide_cursor();
@@ -287,29 +294,44 @@ static void update_editxp(struct tb_event *ev) {
             return;
         }
 
+        if (ev->key == TB_KEY_TAB || ev->key == TB_KEY_ARROW_DOWN) {
+            editxp_enter_edit();
+
+            editxp_icol++;
+            if (editxp_icol >= XP_COL_COUNT)
+                editxp_icol = XP_COL_START;
+            editxp_is_edit_entry = 1;
+        }
+
         entry_t *e = editxp_selected_entry();
         update_entry(e, ev);
         return;
     }
 
-    // Up/Down to select row
     // ESC to close panel
     if (ev->key == TB_KEY_ESC) {
+        // Update expense list with changes.
+        exp_dup(listxp_selected_expense(), editxp_xp);
+
+        // Write expense changes.
+        db_edit_exp(_db, editxp_xp);
+
         editxp_show = 0;
         editxp_icol = XP_COL_START;
         editxp_is_edit_entry = 0;
         return;
     }
 
-    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
+    // Up/Down to select row
+    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k' || (ev->mod == TB_MOD_SHIFT && ev->key == TB_KEY_TAB))
         editxp_icol--;
-    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
+    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j' || ev->key == TB_KEY_TAB)
         editxp_icol++;
 
     if (editxp_icol < XP_COL_START)
-        editxp_icol = XP_COL_START;
-    if (editxp_icol >= XP_COL_COUNT)
         editxp_icol = XP_COL_COUNT-1;
+    if (editxp_icol >= XP_COL_COUNT)
+        editxp_icol = XP_COL_START;
 
     // Enter to edit field
     if (ev->key == TB_KEY_ENTER) {
@@ -452,7 +474,7 @@ static void draw_editxp() {
     int panel_leftpad = 1;
     int panel_rightpad = 1;
     int panel_toppad = 2;
-    int panel_bottompad = 1;
+    int panel_bottompad = 0;
     int panel_height;
     size_t label_width = strlen(xp_col_names[XP_COL_DESC])+1;
     size_t field_width = xp_entry_maxchars[XP_COL_DESC];
@@ -462,7 +484,7 @@ static void draw_editxp() {
     assert(listxp_ixps < listxp_xps->len);
     xp = editxp_xp;
 
-    panel_height = XP_COL_COUNT;
+    panel_height = XP_COL_COUNT + 2;
     editxp = create_panel_center(label_width + field_width, panel_height, panel_leftpad, panel_rightpad, panel_toppad, panel_bottompad);
     draw_panel_shadow(&editxp, editfg,editbg, shadowfg,shadowbg);
     print_text_center("Edit Expense", editxp.content.x,editxp.frame.y+1, editxp.content.width, editfg | TB_BOLD,editbg);
@@ -483,6 +505,7 @@ static void draw_editxp() {
     draw_editxp_row(XP_COL_DATE, x,y, label_width);
     y++;
 
+    print_text_center("[Save]", editxp.content.x,editxp.content.y+editxp.content.height-1, editxp.content.width, btnfg,btnbg);
 }
 static void draw_editxp_row(int icol, int x, int y, int label_width) {
     clr_t fg,bg;
