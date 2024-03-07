@@ -41,10 +41,19 @@ array_t *listxp_xps=0;
 int listxp_ixps=0;
 int listxp_scrollpos=0;
 
+#define EDITXP_ROW_DESC   0
+#define EDITXP_ROW_AMT    1
+#define EDITXP_ROW_CAT    2
+#define EDITXP_ROW_DATE   3
+#define EDITXP_ROW_SAVE   4
+#define EDITXP_ROW_CANCEL 5
+#define EDITXP_ROW_COUNT  6
+
 panel_t editxp;
 int editxp_show=0;
 exp_t *editxp_xp;
 int editxp_icol=XP_COL_DESC;
+int editxp_irow=0;
 int editxp_is_edit_entry=0;
 entry_t editxp_entries[XP_COL_COUNT];
 
