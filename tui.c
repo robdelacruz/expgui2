@@ -41,6 +41,7 @@ int listxp_scrollpos=0;
 
 panel_t editxp;
 int editxp_show=0;
+exp_t *editxp_xp;
 int editxp_icol=XP_COL_DESC;
 int editxp_is_edit_entry=0;
 entry_t editxp_entries[XP_COL_COUNT];
@@ -64,6 +65,7 @@ void tui_start(sqlite3 *db, char *dbfile) {
     tb_set_clear_attrs(textfg, textbg);
 
     listxp_xps = array_new(0);
+    editxp_xp = exp_new();
     for (int i=XP_COL_START; i < XP_COL_COUNT; i++)
         init_entry(&editxp_entries[i], "", xp_entry_maxchars[i]);
 
@@ -89,6 +91,8 @@ void tui_start(sqlite3 *db, char *dbfile) {
     }
 
     tb_shutdown();
+
+    exp_free(editxp_xp);
 }
 
 static void set_output_mode(int mode) {
@@ -156,7 +160,29 @@ static exp_t *listxp_selected_expense() {
     return listxp_xps->items[listxp_ixps];
 }
 
-static void init_editxp(exp_t *xp);
+static void init_editxp(exp_t *xp) {
+    int maxchars;
+    char bufdate[ISO_DATE_LEN+1];
+    char bufamt[12];
+    entry_t *e;
+
+    e = &editxp_entries[XP_COL_DESC];
+    entry_set_text(e, xp->desc->s);
+
+    e = &editxp_entries[XP_COL_AMT];
+    snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
+    entry_set_text(e, bufamt);
+
+    e = &editxp_entries[XP_COL_CAT];
+    entry_set_text(e, xp->catname->s);
+
+    e = &editxp_entries[XP_COL_DATE];
+    date_to_iso(xp->date, bufdate, sizeof(bufdate));
+    entry_set_text(e, bufdate);
+
+    exp_dup(editxp_xp, xp);
+    editxp_show = 1;
+}
 
 static void update_listxp(struct tb_event *ev) {
     if (listxp_xps->len == 0)
@@ -199,50 +225,69 @@ static void update_listxp(struct tb_event *ev) {
     assert(listxp_ixps >= 0 && listxp_ixps < listxp_xps->len);
 }
 
-static void init_editxp(exp_t *xp) {
-    int maxchars;
-    char bufdate[ISO_DATE_LEN+1];
-    char bufamt[12];
-    entry_t *e;
+static entry_t *editxp_selected_entry() {
+    assert(editxp_icol >= XP_COL_START && editxp_icol < XP_COL_COUNT);
+    return &editxp_entries[editxp_icol];
+}
 
-    e = &editxp_entries[XP_COL_DESC];
-    entry_set_text(e, xp->desc->s);
+// Restore editxp entry to its original value.
+static void editxp_cancel_edit() {
+    entry_t *e = editxp_selected_entry();
+    exp_t *xp = editxp_xp;
 
-    e = &editxp_entries[XP_COL_AMT];
-    snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    entry_set_text(e, bufamt);
+    if (editxp_icol == XP_COL_DESC) {
+        entry_set_text(e, xp->desc->s);
+    } else if (editxp_icol == XP_COL_AMT) {
+        char bufamt[12];
+        snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
+        entry_set_text(e, bufamt);
+    } else if (editxp_icol == XP_COL_CAT) {
+        entry_set_text(e, xp->catname->s);
+    } else if (editxp_icol == XP_COL_DATE) {
+        char bufdate[ISO_DATE_LEN+1];
+        date_to_iso(xp->date, bufdate, sizeof(bufdate));
+        entry_set_text(e, bufdate);
+    }
 
-    e = &editxp_entries[XP_COL_CAT];
-    entry_set_text(e, xp->catname->s);
+    editxp_is_edit_entry = 0;
+    tb_hide_cursor();
+}
 
-    e = &editxp_entries[XP_COL_DATE];
-    date_to_iso(xp->date, bufdate, sizeof(bufdate));
-    entry_set_text(e, bufdate);
+// Copy editxp entry to the expense.
+static void editxp_enter_edit() {
+    entry_t *e = editxp_selected_entry();
 
-    editxp_show = 1;
+    if (editxp_icol == XP_COL_DESC) {
+        str_assign(editxp_xp->desc, e->buf);
+    } else if (editxp_icol == XP_COL_AMT) {
+        float amt = strtof(e->buf, NULL);
+        editxp_xp->amt = amt;
+    } else if (editxp_icol == XP_COL_CAT) {
+        //todo
+    } else if (editxp_icol == XP_COL_DATE) {
+        date_assign_iso(editxp_xp->date, e->buf);
+    }
+
+    exp_dup(listxp_selected_expense(), editxp_xp);
+
+    editxp_is_edit_entry = 0;
+    tb_hide_cursor();
 }
 
 static void update_editxp(struct tb_event *ev) {
     // Editing field
     if (editxp_is_edit_entry) {
-        entry_t *e = &editxp_entries[editxp_icol];
-
         // Enter/ESC to cancel row edit
         if (ev->key == TB_KEY_ESC) {
-            editxp_is_edit_entry = 0;
-            tb_set_cursor(0,0);
-            tb_hide_cursor();
-            e->icur = 0;
+            editxp_cancel_edit();
             return;
         } 
         if (ev->key == TB_KEY_ENTER) {
-            editxp_is_edit_entry = 0;
-            tb_set_cursor(0,0);
-            tb_hide_cursor();
-            e->icur = 0;
+            editxp_enter_edit();
             return;
         }
 
+        entry_t *e = editxp_selected_entry();
         update_entry(e, ev);
         return;
     }
@@ -268,6 +313,8 @@ static void update_editxp(struct tb_event *ev) {
 
     // Enter to edit field
     if (ev->key == TB_KEY_ENTER) {
+        entry_t *e = editxp_selected_entry();
+        e->icur = 0;
         editxp_is_edit_entry = 1;
     }
 }
@@ -383,8 +430,8 @@ static void draw_listxp() {
     y = listxp.content.y + listxp.content.height;
     draw_ch_horz(" ", x,y, listxp.content.width, statusfg,statusbg);
 
-    if (listxp_xps->len > 0) {
-        xp = listxp_xps->items[listxp_ixps];
+    xp = listxp_selected_expense();
+    if (xp != NULL) {
         snprintf(buf, sizeof(buf), "%.*s %.2f", 50, xp->desc->s, xp->amt);
         print_text(buf, x,y, listxp.content.width, statusfg,statusbg);
 
@@ -413,7 +460,7 @@ static void draw_editxp() {
 
     assert(listxp_xps->len > 0);
     assert(listxp_ixps < listxp_xps->len);
-    xp = listxp_xps->items[listxp_ixps];
+    xp = editxp_xp;
 
     panel_height = XP_COL_COUNT;
     editxp = create_panel_center(label_width + field_width, panel_height, panel_leftpad, panel_rightpad, panel_toppad, panel_bottompad);
