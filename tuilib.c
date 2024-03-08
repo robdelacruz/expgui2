@@ -251,6 +251,8 @@ void entry_set_text(entry_t *e, char *text) {
 }
 
 static void del_char(char *s, size_t s_len, int ipos) {
+    if (s_len == 0)
+        return;
     if (ipos < 0 || ipos > s_len-1)
         return;
 

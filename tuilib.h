@@ -42,6 +42,10 @@ typedef struct {
     int maxchars;
 } entry_t;
 
+typedef struct {
+    int prev, next;
+} focus_t;
+
 rect_t inner_rect(rect_t r);
 rect_t outer_rect(rect_t r);
 

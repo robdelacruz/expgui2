@@ -7,21 +7,24 @@
 
 char *longtext = "This is some text that took me a long time to write.";
 
+clr_t titlefg;
+clr_t titlebg;
+clr_t statusfg;
+clr_t statusbg;
+clr_t shadowfg;
+clr_t shadowbg;
+
 clr_t textfg;
 clr_t textbg;
 clr_t highlightfg;
 clr_t highlightbg;
-clr_t titlefg;
-clr_t titlebg;
 clr_t colfg;
-clr_t statusfg;
-clr_t statusbg;
-clr_t editfg;
-clr_t editbg;
+clr_t colbg;
+clr_t popupfg;
+clr_t popupbg;
+
 clr_t editfieldfg;
 clr_t editfieldbg;
-clr_t shadowfg;
-clr_t shadowbg;
 clr_t btnfg;
 clr_t btnbg;
 
@@ -41,21 +44,20 @@ array_t *listxp_xps=0;
 int listxp_ixps=0;
 int listxp_scrollpos=0;
 
-#define EDITXP_ROW_DESC   0
-#define EDITXP_ROW_AMT    1
-#define EDITXP_ROW_CAT    2
-#define EDITXP_ROW_DATE   3
-#define EDITXP_ROW_SAVE   4
-#define EDITXP_ROW_CANCEL 5
-#define EDITXP_ROW_COUNT  6
-
 panel_t editxp;
 int editxp_show=0;
 exp_t *editxp_xp;
-int editxp_icol=XP_COL_DESC;
-int editxp_irow=0;
 int editxp_is_edit_entry=0;
 entry_t editxp_entries[XP_COL_COUNT];
+
+#define EDITXP_FOCUS_DESC   0
+#define EDITXP_FOCUS_AMT    1
+#define EDITXP_FOCUS_CAT    2
+#define EDITXP_FOCUS_DATE   3
+#define EDITXP_FOCUS_SAVE   4
+#define EDITXP_FOCUS_COUNT  5
+focus_t editxp_focus[EDITXP_FOCUS_COUNT];
+int editxp_ifocus=0;
 
 sqlite3 *_db;
 
@@ -82,6 +84,16 @@ void tui_start(sqlite3 *db, char *dbfile) {
     editxp_xp = exp_new();
     for (int i=XP_COL_START; i < XP_COL_COUNT; i++)
         init_entry(&editxp_entries[i], "", xp_entry_maxchars[i]);
+    editxp_focus[EDITXP_FOCUS_DESC].prev   = EDITXP_FOCUS_SAVE;
+    editxp_focus[EDITXP_FOCUS_DESC].next   = EDITXP_FOCUS_AMT;
+    editxp_focus[EDITXP_FOCUS_AMT].prev    = EDITXP_FOCUS_DESC;
+    editxp_focus[EDITXP_FOCUS_AMT].next    = EDITXP_FOCUS_CAT;
+    editxp_focus[EDITXP_FOCUS_CAT].prev    = EDITXP_FOCUS_AMT;
+    editxp_focus[EDITXP_FOCUS_CAT].next    = EDITXP_FOCUS_DATE;
+    editxp_focus[EDITXP_FOCUS_DATE].prev   = EDITXP_FOCUS_CAT;
+    editxp_focus[EDITXP_FOCUS_DATE].next   = EDITXP_FOCUS_SAVE;
+    editxp_focus[EDITXP_FOCUS_SAVE].prev   = EDITXP_FOCUS_DATE;
+    editxp_focus[EDITXP_FOCUS_SAVE].next   = EDITXP_FOCUS_DESC;
 
     statusx = 0;
     statusy = tb_height()-1;
@@ -111,39 +123,45 @@ void tui_start(sqlite3 *db, char *dbfile) {
 
 static void set_output_mode(int mode) {
     if (mode == TB_OUTPUT_256) {
+        titlefg = 16;
+        titlebg = 14;
+        statusfg = 254;
+        statusbg = 245;
+        shadowfg = 235;
+        shadowbg = 235;
+
         textfg = 15;
         textbg = 19;
         highlightfg = 16;
         highlightbg = 14;
-        titlefg = 16;
-        titlebg = 14;
         colfg = 11;
-        statusfg = 254;
-        statusbg = 245;
-        editfg = 236;
-        editbg = 252;
-        editfieldfg = 236;
-        editfieldbg = 14;
-        shadowfg = 235;
-        shadowbg = 235;
-        btnfg = editfg;
-        btnbg = editbg;
+        colbg = textbg;
+        popupfg = 236;
+        popupbg = 252;
+
+        editfieldfg = highlightfg|TB_BOLD;
+        editfieldbg = highlightbg;
+        btnfg = popupfg;
+        btnbg = popupbg;
     } else {
+        titlefg = TB_WHITE;
+        titlebg = TB_BLUE;
+        statusfg = TB_YELLOW;
+        statusbg = TB_BLUE;
+        shadowfg = TB_BLACK;
+        shadowbg = TB_BLACK;
+
         textfg = TB_WHITE;
         textbg = TB_BLUE;
         highlightfg = TB_BLACK;
         highlightbg = TB_CYAN;
-        titlefg = TB_WHITE;
-        titlebg = TB_BLUE;
         colfg = TB_YELLOW | TB_BOLD;
-        statusfg = TB_YELLOW;
-        statusbg = TB_BLUE;
-        editfg = TB_BLACK;
-        editbg = TB_WHITE;
+        colbg = textbg;
+        popupfg = TB_BLACK;
+        popupbg = TB_WHITE;
+
         editfieldfg = TB_BLACK;
         editfieldbg = TB_YELLOW;
-        shadowfg = TB_BLACK;
-        shadowbg = TB_BLACK;
         btnfg = TB_BLACK;
         btnbg = TB_YELLOW;
     }
@@ -200,6 +218,8 @@ static void init_editxp(exp_t *xp) {
 
     exp_dup(editxp_xp, xp);
     editxp_show = 1;
+    editxp_ifocus = EDITXP_FOCUS_DESC;
+    editxp_is_edit_entry = 0;
 }
 
 static void update_listxp(struct tb_event *ev) {
@@ -244,8 +264,9 @@ static void update_listxp(struct tb_event *ev) {
 }
 
 static entry_t *editxp_selected_entry() {
-    assert(editxp_icol >= XP_COL_START && editxp_icol < XP_COL_COUNT);
-    return &editxp_entries[editxp_icol];
+    if (editxp_ifocus >= XP_COL_DESC && editxp_ifocus <= XP_COL_DATE)
+        return &editxp_entries[editxp_ifocus];
+    return NULL;
 }
 
 // Restore editxp entry to its original value.
@@ -253,15 +274,15 @@ static void editxp_cancel_edit() {
     entry_t *e = editxp_selected_entry();
     exp_t *xp = editxp_xp;
 
-    if (editxp_icol == XP_COL_DESC) {
+    if (editxp_ifocus == XP_COL_DESC) {
         entry_set_text(e, xp->desc->s);
-    } else if (editxp_icol == XP_COL_AMT) {
+    } else if (editxp_ifocus == XP_COL_AMT) {
         char bufamt[12];
         snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
         entry_set_text(e, bufamt);
-    } else if (editxp_icol == XP_COL_CAT) {
+    } else if (editxp_ifocus == XP_COL_CAT) {
         entry_set_text(e, xp->catname->s);
-    } else if (editxp_icol == XP_COL_DATE) {
+    } else if (editxp_ifocus == XP_COL_DATE) {
         char bufdate[ISO_DATE_LEN+1];
         date_to_iso(xp->date, bufdate, sizeof(bufdate));
         entry_set_text(e, bufdate);
@@ -272,17 +293,17 @@ static void editxp_cancel_edit() {
 }
 
 // Update expense with entry field contents.
-static void editxp_enter_edit() {
+static void editxp_apply_edit() {
     entry_t *e = editxp_selected_entry();
 
-    if (editxp_icol == XP_COL_DESC) {
+    if (editxp_ifocus == XP_COL_DESC) {
         str_assign(editxp_xp->desc, e->buf);
-    } else if (editxp_icol == XP_COL_AMT) {
+    } else if (editxp_ifocus == XP_COL_AMT) {
         float amt = strtof(e->buf, NULL);
         editxp_xp->amt = amt;
-    } else if (editxp_icol == XP_COL_CAT) {
+    } else if (editxp_ifocus == XP_COL_CAT) {
         //todo
-    } else if (editxp_icol == XP_COL_DATE) {
+    } else if (editxp_ifocus == XP_COL_DATE) {
         date_assign_iso(editxp_xp->date, e->buf);
     }
 
@@ -290,6 +311,75 @@ static void editxp_enter_edit() {
     tb_hide_cursor();
 }
 
+static void update_editxp(struct tb_event *ev) {
+    // Editing field
+    if (editxp_is_edit_entry) {
+        // ESC to cancel edits
+        if (ev->key == TB_KEY_ESC) {
+            editxp_cancel_edit();
+            return;
+        } 
+        // Enter to apply edits
+        if (ev->key == TB_KEY_ENTER) {
+            editxp_apply_edit();
+            return;
+        }
+        // Tab/down to apply edits and switch to next field in edit mode.
+        if (ev->key == TB_KEY_TAB || ev->key == TB_KEY_ARROW_DOWN) {
+            editxp_apply_edit();
+
+            // Switch to next focus
+            assert(editxp_ifocus >= 0 && editxp_ifocus < EDITXP_FOCUS_COUNT);
+            editxp_ifocus = editxp_focus[editxp_ifocus].next;
+
+            if (editxp_ifocus >= EDITXP_FOCUS_DESC && editxp_ifocus <= EDITXP_FOCUS_DATE)
+                editxp_is_edit_entry = 1;
+            else
+                editxp_is_edit_entry = 0;
+            return;
+        }
+
+        entry_t *e = editxp_selected_entry();
+        assert(e != NULL);
+        update_entry(e, ev);
+        return;
+    }
+
+    // ESC to close panel without saving changes
+    if (ev->key == TB_KEY_ESC) {
+        editxp_show = 0;
+        return;
+    }
+    // Enter/Space pressed
+    if (ev->key == TB_KEY_ENTER || ev->ch == ' ') {
+        // Start editing field
+        if (editxp_ifocus >= EDITXP_FOCUS_DESC && editxp_ifocus <= EDITXP_FOCUS_DATE) {
+            entry_t *e = editxp_selected_entry();
+            assert(e != NULL);
+            e->icur = 0;
+            editxp_is_edit_entry = 1;
+            return;
+        }
+        // Save edits to listxp and db.
+        exp_dup(listxp_selected_expense(), editxp_xp);
+        db_edit_exp(_db, editxp_xp);
+        editxp_show = 0;
+        return;
+    }
+    // j/k, Up/Down, Tab to switch focus
+    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k' || (ev->mod == TB_MOD_SHIFT && ev->key == TB_KEY_TAB)) {
+        assert(editxp_ifocus >= 0 && editxp_ifocus < EDITXP_FOCUS_COUNT);
+        editxp_ifocus = editxp_focus[editxp_ifocus].prev;
+        return;
+    }
+    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j' || ev->key == TB_KEY_TAB) {
+        assert(editxp_ifocus >= 0 && editxp_ifocus < EDITXP_FOCUS_COUNT);
+        editxp_ifocus = editxp_focus[editxp_ifocus].next;
+        return;
+    }
+}
+
+#if 0
 static void update_editxp(struct tb_event *ev) {
     // Editing field
     if (editxp_is_edit_entry) {
@@ -313,6 +403,7 @@ static void update_editxp(struct tb_event *ev) {
         }
 
         entry_t *e = editxp_selected_entry();
+        assert(e != NULL);
         update_entry(e, ev);
         return;
     }
@@ -349,6 +440,7 @@ static void update_editxp(struct tb_event *ev) {
         editxp_is_edit_entry = 1;
     }
 }
+#endif
 
 static void draw() {
     tb_clear();
@@ -402,7 +494,7 @@ static void draw_listxp() {
     fg = textfg;
     bg = textbg;
     for (int i=XP_COL_START; i < XP_COL_COUNT; i++) {
-        print_text_padded_center(xp_col_names[i], x,y, col_widths[i], xpad, colfg,bg);
+        print_text_padded_center(xp_col_names[i], x,y, col_widths[i], xpad, colfg,colbg);
         x += xpad + col_widths[i] + xpad;
         if (i != XP_COL_COUNT-1) {
             draw_ch(ASC_VERTLINE, x,y, fg,bg);
@@ -495,8 +587,8 @@ static void draw_editxp() {
 
     panel_height = XP_COL_COUNT + 2;
     editxp = create_panel_center(label_width + field_width, panel_height, panel_leftpad, panel_rightpad, panel_toppad, panel_bottompad);
-    draw_panel_shadow(&editxp, editfg,editbg, shadowfg,shadowbg);
-    print_text_center("Edit Expense", editxp.content.x,editxp.frame.y+1, editxp.content.width, editfg | TB_BOLD,editbg);
+    draw_panel_shadow(&editxp, popupfg,popupbg, shadowfg,shadowbg);
+    print_text_center("Edit Expense", editxp.content.x,editxp.frame.y+1, editxp.content.width, popupfg | TB_BOLD,popupbg);
 
     x = editxp.content.x;
     y = editxp.content.y;
@@ -514,7 +606,13 @@ static void draw_editxp() {
     draw_editxp_row(XP_COL_DATE, x,y, label_width);
     y++;
 
-    print_text_center("[Save]", editxp.content.x,editxp.content.y+editxp.content.height-1, editxp.content.width, btnfg,btnbg);
+    fg = popupfg;
+    bg = popupbg;
+    if (editxp_ifocus == EDITXP_FOCUS_SAVE) {
+        fg = highlightfg;
+        bg = highlightbg;
+    }
+    print_text_center("[Save]", editxp.content.x,editxp.content.y+editxp.content.height-1, editxp.content.width, fg,bg);
 }
 static void draw_editxp_row(int icol, int x, int y, int label_width) {
     clr_t fg,bg;
@@ -523,12 +621,12 @@ static void draw_editxp_row(int icol, int x, int y, int label_width) {
     assert(icol >= XP_COL_START || icol < XP_COL_COUNT);
     e = &editxp_entries[icol];
 
-    fg = editfg;
-    bg = editbg;
+    fg = popupfg;
+    bg = popupbg;
     print_text(xp_col_names[icol], x,y, label_width, fg,bg);
 
     x += label_width;
-    if (icol == editxp_icol) {
+    if (icol == editxp_ifocus) {
         fg = highlightfg;
         bg = highlightbg;
         if (editxp_is_edit_entry) {
