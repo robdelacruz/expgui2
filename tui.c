@@ -118,6 +118,7 @@ void tui_start(sqlite3 *db, char *dbfile) {
 
     tb_shutdown();
 
+    array_free(listxp_xps);
     exp_free(editxp_xp);
 }
 
@@ -178,14 +179,33 @@ static void printf_status(const char *fmt, ...) {
     va_end(vl);
 }
 
+static void update_catlistbox(struct tb_event *ev) {
+}
+
+static void draw_catlistbox() {
+    print_text("catlistbox", 5,2, 25, popupfg,popupbg);
+}
 
 static void update(struct tb_event *ev) {
-    if (editxp_show) {
-        update_editxp(ev);
-        return;
-    }
+//    if (editxp_show) {
+//        update_editxp(ev);
+//        return;
+//    }
+//    update_listxp(ev);
+    update_catlistbox(ev);
+}
 
-    update_listxp(ev);
+static void draw() {
+    tb_clear();
+
+//    draw_shell();
+//    draw_listxp();
+//    if (editxp_show) {
+//        draw_editxp();
+//    }
+    draw_catlistbox();
+
+    tb_present();
 }
 
 static exp_t *listxp_selected_expense() {
@@ -377,83 +397,6 @@ static void update_editxp(struct tb_event *ev) {
         editxp_ifocus = editxp_focus[editxp_ifocus].next;
         return;
     }
-}
-
-#if 0
-static void update_editxp(struct tb_event *ev) {
-    // Editing field
-    if (editxp_is_edit_entry) {
-        // Enter/ESC to cancel row edit
-        if (ev->key == TB_KEY_ESC) {
-            editxp_cancel_edit();
-            return;
-        } 
-        if (ev->key == TB_KEY_ENTER) {
-            editxp_enter_edit();
-            return;
-        }
-
-        if (ev->key == TB_KEY_TAB || ev->key == TB_KEY_ARROW_DOWN) {
-            editxp_enter_edit();
-
-            editxp_icol++;
-            if (editxp_icol >= XP_COL_COUNT)
-                editxp_icol = XP_COL_START;
-            editxp_is_edit_entry = 1;
-        }
-
-        entry_t *e = editxp_selected_entry();
-        assert(e != NULL);
-        update_entry(e, ev);
-        return;
-    }
-
-    // ESC to close panel
-    if (ev->key == TB_KEY_ESC) {
-        // Update expense list with changes.
-        exp_dup(listxp_selected_expense(), editxp_xp);
-
-        // Write expense changes.
-        db_edit_exp(_db, editxp_xp);
-
-        editxp_show = 0;
-        editxp_icol = XP_COL_START;
-        editxp_is_edit_entry = 0;
-        return;
-    }
-
-    // Up/Down to select row
-    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k' || (ev->mod == TB_MOD_SHIFT && ev->key == TB_KEY_TAB))
-        editxp_icol--;
-    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j' || ev->key == TB_KEY_TAB)
-        editxp_icol++;
-
-    if (editxp_icol < XP_COL_START)
-        editxp_icol = XP_COL_COUNT-1;
-    if (editxp_icol >= XP_COL_COUNT)
-        editxp_icol = XP_COL_START;
-
-    // Enter to edit field
-    if (ev->key == TB_KEY_ENTER) {
-        entry_t *e = editxp_selected_entry();
-        e->icur = 0;
-        editxp_is_edit_entry = 1;
-    }
-}
-#endif
-
-static void draw() {
-    tb_clear();
-    printf_status("listxp_ixps: %d, listxp_scrollpos: %d", listxp_ixps, listxp_scrollpos);
-
-    draw_shell();
-    draw_listxp();
-
-    if (editxp_show) {
-        draw_editxp();
-    }
-
-    tb_present();
 }
 
 static void draw_shell() {
