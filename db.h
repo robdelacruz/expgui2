@@ -25,7 +25,7 @@ int cat_is_valid(cat_t *cat);
 
 exp_t *exp_new();
 void exp_free(exp_t *xp);
-void exp_dup(exp_t *destxp, exp_t *srcxp);
+void exp_dup(sqlite3 *db, exp_t *dest, exp_t *src);
 int exp_is_valid(exp_t *xp);
 
 int file_exists(char *file);
@@ -33,6 +33,8 @@ int create_tmp_expense_file(str_t *retdbfile, sqlite3 **pdb, str_t *err);
 int create_expense_file(char *dbfile, sqlite3 **pdb, str_t *err);
 int open_expense_file(char *dbfile, sqlite3 **pdb, str_t *err);
 
+int db_select_cat(sqlite3 *db, array_t *cats);
+int db_find_cat_by_id(sqlite3 *db, uint64_t catid, cat_t *cat);
 int db_add_cat(sqlite3 *db, cat_t *cat);
 int db_edit_cat(sqlite3 *db, cat_t *cat);
 int db_del_cat(sqlite3 *db, uint catid);

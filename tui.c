@@ -39,16 +39,13 @@ uint statusx=0, statusy=23;
 char *xp_col_names[XP_COL_COUNT] = {"Description", "Amount", "Category", "Date"};
 int xp_entry_maxchars[XP_COL_COUNT] = {25, 9, 10, 10};
 
+sqlite3 *_db;
+array_t *cats=0;
+
 panel_t listxp;
 array_t *listxp_xps=0;
 int listxp_ixps=0;
 int listxp_scrollpos=0;
-
-panel_t editxp;
-int editxp_show=0;
-exp_t *editxp_xp;
-int editxp_is_edit_entry=0;
-entry_t editxp_entries[XP_COL_COUNT];
 
 #define EDITXP_FOCUS_DESC   0
 #define EDITXP_FOCUS_AMT    1
@@ -56,10 +53,17 @@ entry_t editxp_entries[XP_COL_COUNT];
 #define EDITXP_FOCUS_DATE   3
 #define EDITXP_FOCUS_SAVE   4
 #define EDITXP_FOCUS_COUNT  5
+
+panel_t editxp;
+int editxp_show=0;
+exp_t *editxp_xp;
 focus_t editxp_focus[EDITXP_FOCUS_COUNT];
 int editxp_ifocus=0;
-
-sqlite3 *_db;
+int editxp_is_focus_active=0;
+entry_t editxp_entry_desc;
+entry_t editxp_entry_amt;
+entry_t editxp_entry_date;
+listbox_t editxp_listbox_cat;
 
 static void set_output_mode(int mode);
 static void update(struct tb_event *ev);
@@ -79,11 +83,25 @@ void tui_start(sqlite3 *db, char *dbfile) {
     set_output_mode(TB_OUTPUT_NORMAL);
     tb_set_clear_attrs(textfg, textbg);
 
+    statusx = 0;
+    statusy = tb_height()-1;
+
     _db = db;
+    cats = array_new(0);
     listxp_xps = array_new(0);
     editxp_xp = exp_new();
-    for (int i=XP_COL_START; i < XP_COL_COUNT; i++)
-        init_entry(&editxp_entries[i], "", xp_entry_maxchars[i]);
+
+    db_select_exp(db, listxp_xps);
+    db_select_cat(db, cats);
+
+    init_entry(&editxp_entry_desc, "", xp_entry_maxchars[XP_COL_DESC]);
+    init_entry(&editxp_entry_amt, "", xp_entry_maxchars[XP_COL_AMT]);
+    init_entry(&editxp_entry_date, "", xp_entry_maxchars[XP_COL_DATE]);
+    editxp_listbox_cat.ipos = 0;
+    editxp_listbox_cat.iscrollpos = 0;
+    editxp_listbox_cat.height = 5;
+    editxp_listbox_cat.width = xp_entry_maxchars[XP_COL_CAT];
+
     editxp_focus[EDITXP_FOCUS_DESC].prev   = EDITXP_FOCUS_SAVE;
     editxp_focus[EDITXP_FOCUS_DESC].next   = EDITXP_FOCUS_AMT;
     editxp_focus[EDITXP_FOCUS_AMT].prev    = EDITXP_FOCUS_DESC;
@@ -94,11 +112,6 @@ void tui_start(sqlite3 *db, char *dbfile) {
     editxp_focus[EDITXP_FOCUS_DATE].next   = EDITXP_FOCUS_SAVE;
     editxp_focus[EDITXP_FOCUS_SAVE].prev   = EDITXP_FOCUS_DATE;
     editxp_focus[EDITXP_FOCUS_SAVE].next   = EDITXP_FOCUS_DESC;
-
-    statusx = 0;
-    statusy = tb_height()-1;
-
-    db_select_exp(db, listxp_xps);
 
     tb_clear();
     print_text(longtext, statusx,statusy, tb_width(), TB_DEFAULT,TB_DEFAULT);
@@ -179,31 +192,90 @@ static void printf_status(const char *fmt, ...) {
     va_end(vl);
 }
 
-static void update_catlistbox(struct tb_event *ev) {
+static void update_catlistbox(struct tb_event *ev, listbox_t *lb, array_t *cats) {
+    if (cats->len == 0)
+        return;
+
+    // Navigate Up/Down/PgUp/PgDn
+    if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k')
+        lb->ipos--;
+    if (ev->key == TB_KEY_ARROW_DOWN || ev->ch == 'j')
+        lb->ipos++;
+    if (ev->key == TB_KEY_PGUP || ev->key == TB_KEY_CTRL_U)
+        lb->ipos -= lb->height/2;
+    if (ev->key == TB_KEY_PGDN || ev->key == TB_KEY_CTRL_D)
+        lb->ipos += lb->height/2;
+
+    if (lb->ipos < 0)
+        lb->ipos = 0;
+    if (lb->ipos > cats->len-1)
+        lb->ipos = cats->len-1;
+
+    if (lb->ipos < lb->iscrollpos)
+        lb->iscrollpos = lb->ipos;
+    if (lb->ipos > lb->iscrollpos + lb->height-1)
+        lb->iscrollpos = lb->ipos - (lb->height-1);
+
+    if (lb->iscrollpos < 0)
+        lb->iscrollpos = 0;
+    if (lb->iscrollpos > cats->len-1)
+        lb->iscrollpos = cats->len-1;
+
+    assert(lb->ipos >= 0 && lb->ipos < cats->len);
 }
 
-static void draw_catlistbox() {
-    print_text("catlistbox", 5,2, 25, popupfg,popupbg);
+static void draw_catlistbox(int x, int y, listbox_t *lb, array_t *cats, clr_t lb_fg, clr_t lb_bg) {
+    clr_t fg, bg;
+    int row;
+    cat_t *cat;
+    int xpad = 0;
+    int height = lb->height;
+    panel_t p;
+
+    if (height > cats->len)
+        height = cats->len;
+
+    p = create_panel_frame(x,y, lb->width+2,height+2, 0,0,0,0);
+//    draw_panel_shadow(&p, lb_fg,lb_bg, shadowfg,shadowbg);
+    draw_panel(&p, lb_fg,lb_bg);
+
+    x = p.content.x;
+    y = p.content.y;
+    row = 0;
+    for (int i=lb->iscrollpos; i < cats->len; i++) {
+        if (row > height-1)
+            break;
+        cat = cats->items[i];
+        if (i == lb->ipos) {
+            fg = highlightfg;
+            bg = highlightbg;
+        } else {
+            fg = lb_fg;
+            bg = lb_bg;
+        }
+        print_text_padded(cat->name->s, x,y, lb->width, xpad, fg,bg);
+
+        y++;
+        row++;
+    }
 }
 
 static void update(struct tb_event *ev) {
-//    if (editxp_show) {
-//        update_editxp(ev);
-//        return;
-//    }
-//    update_listxp(ev);
-    update_catlistbox(ev);
+    if (editxp_show) {
+        update_editxp(ev);
+        return;
+    }
+    update_listxp(ev);
 }
 
 static void draw() {
     tb_clear();
 
-//    draw_shell();
-//    draw_listxp();
-//    if (editxp_show) {
-//        draw_editxp();
-//    }
-    draw_catlistbox();
+    draw_shell();
+    draw_listxp();
+    if (editxp_show) {
+        draw_editxp();
+    }
 
     tb_present();
 }
@@ -216,30 +288,45 @@ static exp_t *listxp_selected_expense() {
     return listxp_xps->items[listxp_ixps];
 }
 
+static void set_cat_listbox(listbox_t *lb, uint64_t catid) {
+    lb->ipos = 0;
+    for (int i=0; i < cats->len; i++) {
+        cat_t *cat = cats->items[i];
+        if (cat->catid == catid) {
+            lb->ipos = i;
+            break;
+        }
+    }
+}
+static cat_t *get_selected_cat_from_listbox(listbox_t *lb) {
+    cat_t *cat;
+
+    if (cats->len == 0)
+        return NULL;
+
+    assert(lb->ipos >= 0 && lb->ipos < cats->len);
+    cat = cats->items[lb->ipos];
+    return cat;
+}
+
 static void init_editxp(exp_t *xp) {
     int maxchars;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
-    entry_t *e;
 
-    e = &editxp_entries[XP_COL_DESC];
-    entry_set_text(e, xp->desc->s);
+    entry_set_text(&editxp_entry_desc, xp->desc->s);
+    set_cat_listbox(&editxp_listbox_cat, xp->catid);
 
-    e = &editxp_entries[XP_COL_AMT];
     snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    entry_set_text(e, bufamt);
+    entry_set_text(&editxp_entry_amt, bufamt);
 
-    e = &editxp_entries[XP_COL_CAT];
-    entry_set_text(e, xp->catname->s);
-
-    e = &editxp_entries[XP_COL_DATE];
     date_to_iso(xp->date, bufdate, sizeof(bufdate));
-    entry_set_text(e, bufdate);
+    entry_set_text(&editxp_entry_date, bufdate);
 
-    exp_dup(editxp_xp, xp);
+    exp_dup(_db, editxp_xp, xp);
     editxp_show = 1;
     editxp_ifocus = EDITXP_FOCUS_DESC;
-    editxp_is_edit_entry = 0;
+    editxp_is_focus_active = 0;
 }
 
 static void update_listxp(struct tb_event *ev) {
@@ -283,57 +370,50 @@ static void update_listxp(struct tb_event *ev) {
     assert(listxp_ixps >= 0 && listxp_ixps < listxp_xps->len);
 }
 
-static entry_t *editxp_selected_entry() {
-    if (editxp_ifocus >= XP_COL_DESC && editxp_ifocus <= XP_COL_DATE)
-        return &editxp_entries[editxp_ifocus];
-    return NULL;
-}
-
 // Restore editxp entry to its original value.
 static void editxp_cancel_edit() {
-    entry_t *e = editxp_selected_entry();
-    exp_t *xp = editxp_xp;
-
-    if (editxp_ifocus == XP_COL_DESC) {
-        entry_set_text(e, xp->desc->s);
-    } else if (editxp_ifocus == XP_COL_AMT) {
+    if (editxp_ifocus == EDITXP_FOCUS_DESC) {
+        entry_set_text(&editxp_entry_desc, editxp_xp->desc->s);
+    } else if (editxp_ifocus == EDITXP_FOCUS_AMT) {
         char bufamt[12];
-        snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-        entry_set_text(e, bufamt);
-    } else if (editxp_ifocus == XP_COL_CAT) {
-        entry_set_text(e, xp->catname->s);
-    } else if (editxp_ifocus == XP_COL_DATE) {
+        snprintf(bufamt, sizeof(bufamt), "%.2f", editxp_xp->amt);
+        entry_set_text(&editxp_entry_amt, bufamt);
+    } else if (editxp_ifocus == EDITXP_FOCUS_CAT) {
+        set_cat_listbox(&editxp_listbox_cat, editxp_xp->catid);
+    } else if (editxp_ifocus == EDITXP_FOCUS_DATE) {
         char bufdate[ISO_DATE_LEN+1];
-        date_to_iso(xp->date, bufdate, sizeof(bufdate));
-        entry_set_text(e, bufdate);
+        date_to_iso(editxp_xp->date, bufdate, sizeof(bufdate));
+        entry_set_text(&editxp_entry_date, bufdate);
     }
 
-    editxp_is_edit_entry = 0;
+    editxp_is_focus_active = 0;
     tb_hide_cursor();
 }
 
 // Update expense with entry field contents.
 static void editxp_apply_edit() {
-    entry_t *e = editxp_selected_entry();
-
-    if (editxp_ifocus == XP_COL_DESC) {
-        str_assign(editxp_xp->desc, e->buf);
-    } else if (editxp_ifocus == XP_COL_AMT) {
-        float amt = strtof(e->buf, NULL);
+    if (editxp_ifocus == EDITXP_FOCUS_DESC) {
+        str_assign(editxp_xp->desc, editxp_entry_desc.buf);
+    } else if (editxp_ifocus == EDITXP_FOCUS_AMT) {
+        float amt = strtof(editxp_entry_amt.buf, NULL);
         editxp_xp->amt = amt;
-    } else if (editxp_ifocus == XP_COL_CAT) {
-        //todo
-    } else if (editxp_ifocus == XP_COL_DATE) {
-        date_assign_iso(editxp_xp->date, e->buf);
+    } else if (editxp_ifocus == EDITXP_FOCUS_CAT) {
+        cat_t *cat = get_selected_cat_from_listbox(&editxp_listbox_cat);
+        if (cat != NULL)
+            editxp_xp->catid = cat->catid;
+    } else if (editxp_ifocus == EDITXP_FOCUS_DATE) {
+        date_assign_iso(editxp_xp->date, editxp_entry_date.buf);
     }
 
-    editxp_is_edit_entry = 0;
+    editxp_is_focus_active = 0;
     tb_hide_cursor();
 }
 
 static void update_editxp(struct tb_event *ev) {
+    int ifocus = editxp_ifocus;
+
     // Editing field
-    if (editxp_is_edit_entry) {
+    if (editxp_is_focus_active) {
         // ESC to cancel edits
         if (ev->key == TB_KEY_ESC) {
             editxp_cancel_edit();
@@ -349,19 +429,24 @@ static void update_editxp(struct tb_event *ev) {
             editxp_apply_edit();
 
             // Switch to next focus
-            assert(editxp_ifocus >= 0 && editxp_ifocus < EDITXP_FOCUS_COUNT);
-            editxp_ifocus = editxp_focus[editxp_ifocus].next;
+            assert(ifocus >= 0 && ifocus < EDITXP_FOCUS_COUNT);
+            editxp_ifocus = editxp_focus[ifocus].next;
 
-            if (editxp_ifocus >= EDITXP_FOCUS_DESC && editxp_ifocus <= EDITXP_FOCUS_DATE)
-                editxp_is_edit_entry = 1;
+            if (ifocus == EDITXP_FOCUS_SAVE)
+                editxp_is_focus_active = 0;
             else
-                editxp_is_edit_entry = 0;
+                editxp_is_focus_active = 1;
             return;
         }
 
-        entry_t *e = editxp_selected_entry();
-        assert(e != NULL);
-        update_entry(e, ev);
+        if (ifocus == EDITXP_FOCUS_DESC)
+            update_entry(&editxp_entry_desc, ev);
+        else if (ifocus == EDITXP_FOCUS_AMT)
+            update_entry(&editxp_entry_amt, ev);
+        else if (ifocus == EDITXP_FOCUS_DATE)
+            update_entry(&editxp_entry_date, ev);
+        else if (ifocus == EDITXP_FOCUS_CAT)
+            update_catlistbox(ev, &editxp_listbox_cat, cats);
         return;
     }
 
@@ -372,19 +457,28 @@ static void update_editxp(struct tb_event *ev) {
     }
     // Enter/Space pressed
     if (ev->key == TB_KEY_ENTER || ev->ch == ' ') {
-        // Start editing field
-        if (editxp_ifocus >= EDITXP_FOCUS_DESC && editxp_ifocus <= EDITXP_FOCUS_DATE) {
-            entry_t *e = editxp_selected_entry();
-            assert(e != NULL);
-            e->icur = 0;
-            editxp_is_edit_entry = 1;
+        if (ifocus == EDITXP_FOCUS_DESC) {
+            editxp_entry_desc.icur = 0;
+            editxp_is_focus_active = 1;
+            return;
+        } else if (ifocus == EDITXP_FOCUS_AMT) {
+            editxp_entry_amt.icur = 0;
+            editxp_is_focus_active = 1;
+            return;
+        } else if (ifocus == EDITXP_FOCUS_DATE) {
+            editxp_entry_date.icur = 0;
+            editxp_is_focus_active = 1;
+            return;
+        } else if (ifocus == EDITXP_FOCUS_CAT) {
+            editxp_is_focus_active = 1;
+            return;
+        } else if (ifocus == EDITXP_FOCUS_SAVE) {
+            // Save edits to listxp and db.
+            exp_dup(_db, listxp_selected_expense(), editxp_xp);
+            db_edit_exp(_db, editxp_xp);
+            editxp_show = 0;
             return;
         }
-        // Save edits to listxp and db.
-        exp_dup(listxp_selected_expense(), editxp_xp);
-        db_edit_exp(_db, editxp_xp);
-        editxp_show = 0;
-        return;
     }
     // j/k, Up/Down, Tab to switch focus
     if (ev->key == TB_KEY_ARROW_UP || ev->ch == 'k' || (ev->mod == TB_MOD_SHIFT && ev->key == TB_KEY_TAB)) {
@@ -410,6 +504,7 @@ static void draw_listxp() {
     char buf[128];
     clr_t fg, bg;
     int x,y;
+    int row;
 
     int xpad;
     int desc_maxwidth;
@@ -449,7 +544,7 @@ static void draw_listxp() {
     x = listxp.content.x;
     y = listxp.content.y;
 
-    int row = 0;
+    row = 0;
     for (int i=listxp_scrollpos; i < listxp_xps->len; i++) {
         if (row > listxp.content.height-1)
             break;
@@ -507,14 +602,42 @@ static void draw_listxp() {
     }
 }
 
-static void draw_editxp_row(int icol, int x, int y, int label_width);
+static void draw_editxp_entry_row(int x, int y, char *label, int label_width, int focus_ctrl) {
+    clr_t fg, bg;
+    int show_cursor;
+    entry_t *entry;
+
+    if (focus_ctrl == EDITXP_FOCUS_DESC)
+        entry = &editxp_entry_desc;
+    else if (focus_ctrl == EDITXP_FOCUS_AMT)
+        entry = &editxp_entry_amt;
+    else if (focus_ctrl == EDITXP_FOCUS_DATE)
+        entry = &editxp_entry_date;
+    else return;
+
+    fg = popupfg;
+    bg = popupbg;
+    show_cursor = 0; 
+    print_text(label, x,y, label_width, fg,bg);
+    x += label_width;
+    if (editxp_ifocus == focus_ctrl) {
+        fg = highlightfg;
+        bg = highlightbg;
+        if (editxp_is_focus_active) {
+            fg = editfieldfg;
+            bg = editfieldbg;
+            show_cursor = 1;
+        }
+    }
+    draw_entry(entry, x,y, show_cursor, fg,bg);
+}
 
 static void draw_editxp() {
     exp_t *xp;
     char bufdate[ISO_DATE_LEN+1];
     char bufamt[12];
     char bufprompt[1024];
-    int x,y;
+    int x,y, y_cat_listbox;
     int panel_leftpad = 1;
     int panel_rightpad = 1;
     int panel_toppad = 2;
@@ -535,18 +658,31 @@ static void draw_editxp() {
 
     x = editxp.content.x;
     y = editxp.content.y;
-    draw_editxp_row(XP_COL_DESC, x,y, label_width);
+
+    draw_editxp_entry_row(x,y, xp_col_names[XP_COL_DESC], label_width, EDITXP_FOCUS_DESC);
+    y++;
+    draw_editxp_entry_row(x,y, xp_col_names[XP_COL_AMT], label_width, EDITXP_FOCUS_AMT);
     y++;
 
-    snprintf(bufamt, sizeof(bufamt), "%.2f", xp->amt);
-    draw_editxp_row(XP_COL_AMT, x,y, label_width);
+    fg = popupfg;
+    bg = popupbg;
+    print_text(xp_col_names[XP_COL_CAT], x,y, label_width, fg,bg);
+    x += label_width;
+    if (editxp_ifocus == EDITXP_FOCUS_CAT) {
+        fg = highlightfg;
+        bg = highlightbg;
+    }
+    char *catname = "";
+    cat_t *cat = get_selected_cat_from_listbox(&editxp_listbox_cat);
+    if (cat != NULL)
+        print_text(cat->name->s, x,y, editxp_listbox_cat.width, fg,bg);
+    else
+        print_text("none", x,y, editxp_listbox_cat.width, fg,bg);
+    y_cat_listbox = y;
     y++;
 
-    draw_editxp_row(XP_COL_CAT, x,y, label_width);
-    y++;
-
-    date_to_iso(xp->date, bufdate, sizeof(bufdate));
-    draw_editxp_row(XP_COL_DATE, x,y, label_width);
+    x = editxp.content.x;
+    draw_editxp_entry_row(x,y, xp_col_names[XP_COL_DATE], label_width, EDITXP_FOCUS_DATE);
     y++;
 
     fg = popupfg;
@@ -556,28 +692,9 @@ static void draw_editxp() {
         bg = highlightbg;
     }
     print_text_center("[Save]", editxp.content.x,editxp.content.y+editxp.content.height-1, editxp.content.width, fg,bg);
-}
-static void draw_editxp_row(int icol, int x, int y, int label_width) {
-    clr_t fg,bg;
-    entry_t *e;
 
-    assert(icol >= XP_COL_START || icol < XP_COL_COUNT);
-    e = &editxp_entries[icol];
-
-    fg = popupfg;
-    bg = popupbg;
-    print_text(xp_col_names[icol], x,y, label_width, fg,bg);
-
-    x += label_width;
-    if (icol == editxp_ifocus) {
-        fg = highlightfg;
-        bg = highlightbg;
-        if (editxp_is_edit_entry) {
-            draw_entry(e, x,y, 1, editfieldfg,editfieldbg);
-            return;
-        }
-    }
-
-    draw_entry(e, x,y, 0, fg,bg);
+    if (editxp_ifocus == EDITXP_FOCUS_CAT && editxp_is_focus_active)
+        //draw_catlistbox(x+label_width,y_cat_listbox, &editxp_listbox_cat, cats, textfg,textbg);
+        draw_catlistbox(x+label_width,y_cat_listbox, &editxp_listbox_cat, cats, popupfg,popupbg);
 }
 

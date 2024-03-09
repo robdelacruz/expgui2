@@ -43,6 +43,13 @@ typedef struct {
 } entry_t;
 
 typedef struct {
+    int ipos;
+    int iscrollpos;
+    int width;
+    int height;
+} listbox_t;
+
+typedef struct {
     int prev, next;
 } focus_t;
 

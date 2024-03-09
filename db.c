@@ -201,13 +201,20 @@ void exp_free(exp_t *xp) {
     free(xp);
 }
 
-void exp_dup(exp_t *dest, exp_t *src) {
+void exp_dup(sqlite3 *db, exp_t *dest, exp_t *src) {
     dest->expid = src->expid;
     date_dup(dest->date, src->date);
     str_assign(dest->desc, src->desc->s);
     str_assign(dest->catname, src->catname->s);
     dest->amt = src->amt;
-    dest->catid = src->catid;
+
+    if (dest->catid != src->catid) {
+        cat_t *cat = cat_new();
+        db_find_cat_by_id(db, src->catid, cat);
+        dest->catid = cat->catid;
+        str_assign(dest->catname, cat->name->s);
+        cat_free(cat);
+    }
 }
 
 int exp_is_valid(exp_t *xp) {
@@ -216,6 +223,35 @@ int exp_is_valid(exp_t *xp) {
     return 1;
 }
 
+int db_find_cat_by_id(sqlite3 *db, uint64_t catid, cat_t *cat) {
+    sqlite3_stmt *stmt;
+    char *s;
+    int z;
+
+    cat->catid = 0;
+    str_assign(cat->name, "");
+
+    s = "SELECT cat_id, name FROM cat WHERE cat_id=?";
+    z = prepare_sql(db, s, &stmt);
+    if (z != 0) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    sqlite3_bind_int(stmt, 1, catid);
+
+    z = sqlite3_step(stmt);
+    if (z < SQLITE_ROW) {
+        db_handle_err(db, stmt, s);
+        return 1;
+    }
+    if (z == SQLITE_ROW) {
+        cat->catid = sqlite3_column_int64(stmt, 0);
+        str_assign(cat->name, (char*)sqlite3_column_text(stmt, 1));
+    }
+
+    sqlite3_finalize(stmt);
+    return 0;
+}
 int db_select_cat(sqlite3 *db, array_t *cats) {
     cat_t *cat;
     sqlite3_stmt *stmt;
