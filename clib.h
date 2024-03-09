@@ -2,6 +2,9 @@
 #define CLIB_H
 
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 #define countof(v) (sizeof(v) / sizeof((v)[0]))
 #define memzero(p, v) (memset(p, 0, sizeof(v)))

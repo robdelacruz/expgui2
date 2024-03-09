@@ -1,5 +1,5 @@
 TSRC=t.c db.c clib.c mainwin.c
-T2SRC=t2.c db.c clib.c tui.c tuilib.c
+TEXPSRC=t2.c db.c clib.c tui.c tuilib.c tui.c listxp.c editxp.c
 LIBSRC=
 
 # pkg-config --cflags --libs gtk+-3.0
@@ -13,12 +13,12 @@ CFLAGS+= -Wno-deprecated-declarations
 CFLAGS+= -g
 LIBS=
 
-all: t t2
+all: texp
 
 dep:
 	apt install libgtk-3-dev
 
-#.SILENT:
+.SILENT:
 t: $(TSRC) sqlite3.o
 	gcc $(CFLAGS) $(GTK_CFLAGS) -o $@ $^ $(LIBS) $(GTK_LIBS)
 
@@ -28,9 +28,9 @@ sqlite3.o: sqlite3/sqlite3.c
 termbox2.o: termbox2.c
 	gcc -c -o $@ $^
 
-t2: $(T2SRC) sqlite3.o termbox2.o
+texp: $(TEXPSRC) sqlite3.o termbox2.o
 	gcc $(CFLAGS) -o $@ $^ $(LIBS)
 
 clean:
-	rm -rf t t2 *.o
+	rm -rf t texp *.o
 

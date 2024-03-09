@@ -1,3 +1,6 @@
+#ifndef TUILIB_H
+#define TUILIB_H
+
 #include "termbox2.h"
 
 #define ASC_TOPLEFT     "┌"
@@ -82,3 +85,4 @@ void entry_set_text(entry_t *e, char *text);
 void update_entry(entry_t *e, struct tb_event *ev);
 void draw_entry(entry_t *e, int x, int y, int show_cursor, clr_t fg, clr_t bg) ;
 
+#endif
