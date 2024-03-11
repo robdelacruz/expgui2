@@ -12,3 +12,6 @@ https://stackoverflow.com/questions/50963806/set-cell-in-gtktreeview-to-edit-mod
 
 https://lloydrochester.com/post/c/sqlite-api/
 
+compile with wxwidgets:
+g++ myfoo.cpp `wx-config --libs --cxxflags` -o myfoo
+
