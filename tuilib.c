@@ -25,6 +25,74 @@
 //
 //
 
+clr_t titlefg;
+clr_t titlebg;
+clr_t statusfg;
+clr_t statusbg;
+clr_t shadowfg;
+clr_t shadowbg;
+
+clr_t textfg;
+clr_t textbg;
+clr_t highlightfg;
+clr_t highlightbg;
+clr_t colfg;
+clr_t colbg;
+clr_t popupfg;
+clr_t popupbg;
+
+clr_t editfieldfg;
+clr_t editfieldbg;
+clr_t btnfg;
+clr_t btnbg;
+
+void set_output_mode(int mode) {
+    if (mode == TB_OUTPUT_256) {
+        titlefg = 16;
+        titlebg = 14;
+        statusfg = 254;
+        statusbg = 245;
+        shadowfg = 235;
+        shadowbg = 235;
+
+        textfg = 15;
+        textbg = 19;
+        highlightfg = 16;
+        highlightbg = 14;
+        colfg = 11;
+        colbg = textbg;
+        popupfg = 236;
+        popupbg = 252;
+
+        editfieldfg = highlightfg|TB_BOLD;
+        editfieldbg = highlightbg;
+        btnfg = popupfg;
+        btnbg = popupbg;
+    } else {
+        titlefg = TB_WHITE;
+        titlebg = TB_BLUE;
+        statusfg = TB_YELLOW;
+        statusbg = TB_BLUE;
+        shadowfg = TB_BLACK;
+        shadowbg = TB_BLACK;
+
+        textfg = TB_WHITE;
+        textbg = TB_BLUE;
+        highlightfg = TB_BLACK;
+        highlightbg = TB_CYAN;
+        colfg = TB_YELLOW | TB_BOLD;
+        colbg = textbg;
+        popupfg = TB_BLACK;
+        popupbg = TB_WHITE;
+
+        editfieldfg = TB_BLACK;
+        editfieldbg = TB_YELLOW;
+        btnfg = TB_BLACK;
+        btnbg = TB_YELLOW;
+    }
+    tb_set_output_mode(mode);
+}
+
 rect_t inner_rect(rect_t r) {
     if (r.width > 2) {
         r.x++;
@@ -246,7 +314,7 @@ void init_entry(entry_t *e, char *text, int maxchars) {
 }
 void entry_set_text(entry_t *e, char *text) {
     strncpy(e->buf, text, e->maxchars);
-    e->buf[e->maxchars+1] = 0;
+    e->buf[e->maxchars] = 0;
     e->icur = 0;
 }
 

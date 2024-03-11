@@ -7,39 +7,57 @@
 #include "clib.h"
 #include "tuilib.h"
 
-#define XP_COL_START 0
-#define XP_COL_DESC 0
-#define XP_COL_AMT 1
-#define XP_COL_CAT 2
-#define XP_COL_DATE 3
-#define XP_COL_COUNT 4
+enum {
+    XP_COL_DESC=0,
+    XP_COL_AMT,
+    XP_COL_CAT,
+    XP_COL_DATE,
+    XP_COL_COUNT
+};
 
-extern char *xp_col_names[XP_COL_COUNT];
-extern int xp_entry_maxchars[XP_COL_COUNT];
-extern sqlite3 *_db;
-extern array_t *cats;
+enum {
+    EDITXP_FOCUS_DESC=0,
+    EDITXP_FOCUS_AMT,
+    EDITXP_FOCUS_CAT,
+    EDITXP_FOCUS_DATE,
+    EDITXP_FOCUS_SAVE,
+    EDITXP_FOCUS_COUNT
+};
 
-extern clr_t titlefg;
-extern clr_t titlebg;
-extern clr_t statusfg;
-extern clr_t statusbg;
-extern clr_t shadowfg;
-extern clr_t shadowbg;
+typedef struct {
+    sqlite3*    db;
+    array_t*    cats;
+    uint        statusx, statusy;
+    char*       xp_col_names[XP_COL_COUNT];
+    int         xp_col_maxchars[XP_COL_COUNT];
 
-extern clr_t textfg;
-extern clr_t textbg;
-extern clr_t highlightfg;
-extern clr_t highlightbg;
-extern clr_t colfg;
-extern clr_t colbg;
-extern clr_t popupfg;
-extern clr_t popupbg;
+    panel_t     listxp;
+    array_t*    listxp_xps;
+    int         listxp_ixps;
+    int         listxp_scrollpos;
 
-extern clr_t editfieldfg;
-extern clr_t editfieldbg;
-extern clr_t btnfg;
-extern clr_t btnbg;
+    panel_t     editxp;
+    int         editxp_show;
+    exp_t*      editxp_xp;
+    focus_t     editxp_focus[EDITXP_FOCUS_COUNT];
+    int         editxp_ifocus;
+    int         editxp_is_focus_active;
+    entry_t     editxp_entry_desc;
+    entry_t     editxp_entry_amt;
+    entry_t     editxp_entry_date;
+    listbox_t   editxp_listbox_cat;
+} tui_t;
 
 void tui_start(sqlite3 *db, char *dbfile);
+void printf_status(tui_t *t, const char *fmt, ...);
+
+exp_t *listxp_selected_expense(tui_t *t);
+void draw_listxp(tui_t *t);
+void update_listxp(tui_t *t, struct tb_event *ev);
+
+void init_editxp(tui_t *t, exp_t *xp);
+void draw_editxp(tui_t *t);
+void update_editxp(tui_t *t, struct tb_event *ev);
 
 #endif
+

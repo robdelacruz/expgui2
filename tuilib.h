@@ -56,6 +56,29 @@ typedef struct {
     int prev, next;
 } focus_t;
 
+extern clr_t titlefg;
+extern clr_t titlebg;
+extern clr_t statusfg;
+extern clr_t statusbg;
+extern clr_t shadowfg;
+extern clr_t shadowbg;
+
+extern clr_t textfg;
+extern clr_t textbg;
+extern clr_t highlightfg;
+extern clr_t highlightbg;
+extern clr_t colfg;
+extern clr_t colbg;
+extern clr_t popupfg;
+extern clr_t popupbg;
+
+extern clr_t editfieldfg;
+extern clr_t editfieldbg;
+extern clr_t btnfg;
+extern clr_t btnbg;
+
+void set_output_mode(int mode);
+
 rect_t inner_rect(rect_t r);
 rect_t outer_rect(rect_t r);
 
